@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail, sendAdminOrderAlert } from '../../../lib/email'
+import { getAccessToken, findOrCreateCustomer, createSalesReceipt } from '../../../lib/quickbooks'
+
+async function syncToQuickBooks(order) {
+  if (!process.env.QBO_REFRESH_TOKEN || !process.env.QBO_REALM_ID) return
+  const accessToken = await getAccessToken()
+  const realmId = process.env.QBO_REALM_ID
+  const customer = await findOrCreateCustomer(accessToken, realmId, {
+    name: order.customer_name,
+    email: order.customer_email,
+    phone: order.customer_phone,
+    address: order.shipping_address,
+  })
+  await createSalesReceipt(accessToken, realmId, { customer, order })
+}
 
 export async function POST(request) {
   try {
@@ -71,10 +85,11 @@ export async function POST(request) {
       total,
     }
 
-    // Send emails (non-blocking — don't fail the order if email fails)
+    // Send emails + sync to QuickBooks (non-blocking — don't fail the order if these fail)
     Promise.all([
       sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),
       sendAdminOrderAlert(order).catch(e => console.error('Admin email failed:', e)),
+      syncToQuickBooks(order).catch(e => console.error('QuickBooks sync failed:', e)),
     ])
 
     return NextResponse.json({ orderId: data.id, orderNumber: order_number })
