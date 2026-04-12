@@ -76,6 +76,17 @@ export default function Home() {
           </div>
         </div>
       </section>
+{/* ── CUSTOM REQUEST BANNER ── */}
+      <div className="bg-[#f0f7ff] border-y border-[#2196f3]/20 py-4">
+                <div className="max-w-6xl mx-auto px-5 sm:px-8 flex items-center justify-center gap-3 text-center flex-wrap">
+                  <span className="text-lg">💬</span>
+          <p className="text-sm text-[#0d1b2a]">
+                    <span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
+            We&apos;re happy to help source it —{' '}
+            <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us →</Link>
+              </p>
+              </div>
+              </div>
 
       {/* ── COMING SOON ── */}
       <section className="bg-white py-12 md:py-20">
