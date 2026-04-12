@@ -5,6 +5,7 @@ import { useCart } from '../../components/CartContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -16,6 +17,21 @@ const US_STATES = [
 export default function CheckoutPage() {
   const { cart, cartTotal, clearCart } = useCart()
   const router = useRouter()
+  const { user, isSignedIn } = useUser()
+
+  // Pre-fill form from Clerk profile when signed in
+  useEffect(() => {
+    if (isSignedIn && user) {
+      setForm(prev => ({
+        ...prev,
+        firstName: prev.firstName || user.firstName || '',
+        lastName: prev.lastName || user.lastName || '',
+        email: prev.email || user.primaryEmailAddress?.emailAddress || '',
+        phone: prev.phone || user.primaryPhoneNumber?.phoneNumber || '',
+      }))
+    }
+  }, [isSignedIn, user])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [form, setForm] = useState({
@@ -124,7 +140,26 @@ export default function CheckoutPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       <h1 className="text-2xl font-bold text-[#0d1b2a] mb-6 sm:mb-8 tracking-wide uppercase">Checkout</h1>
-      {/* ── CUSTOM REQUEST BANNER ── */}
+      {/* ── CLERK SIGN-IN BANNER ── */}
+        <div className="bg-[#f8f9fa] border border-[#dee2e6] rounded-lg p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <SignedOut>
+            <span className="text-sm text-[#0d1b2a]">
+              <span className="font-bold">Have an account?</span> Sign in for faster checkout — we&apos;ll pre-fill your info.
+            </span>
+            <SignInButton mode="modal">
+              <button className="text-sm bg-[#0d1b2a] text-white px-4 py-2 rounded-lg hover:bg-[#1a2f47] transition-colors flex-shrink-0">
+                Sign in
+              </button>
+            </SignInButton>
+          </SignedOut>
+          <SignedIn>
+            <div className="flex items-center gap-3">
+              <UserButton />
+              <span className="text-sm text-[#0d1b2a]">Signed in — your info has been pre-filled below.</span>
+            </div>
+          </SignedIn>
+        </div>
+        {/* ── CUSTOM REQUEST BANNER ── */}
       <div className="bg-[#f0f7ff] border border-[#2196f3]/30 rounded-lg p-4 mb-6 flex items-start gap-3">
         <span className="text-lg flex-shrink-0">💬</span>
         <p className="text-sm text-[#0d1b2a]">
