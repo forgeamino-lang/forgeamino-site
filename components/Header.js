@@ -29,25 +29,25 @@ export default function Header() {
             />
           </Link>
 
-          {/* Nav */}
-          <nav className="hidden md:flex items-center gap-10">
-            <Link href="/shop" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
-              Shop
+          {/* Nav + Cart grouped in top right */}
+          <div className="flex items-center gap-8">
+            <nav className="hidden md:flex items-center gap-8">
+              <Link href="/shop" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
+                Shop
+              </Link>
+              <Link href="/contact" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
+                Contact
+              </Link>
+            </nav>
+            <Link href="/cart" className="relative flex items-center text-[#0d1b2a] hover:text-[#2196f3] transition-colors">
+              <ShoppingCart size={22} />
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#2196f3] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
             </Link>
-            <Link href="/contact" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
-              Contact
-            </Link>
-          </nav>
-
-          {/* Cart icon */}
-          <Link href="/cart" className="relative flex items-center gap-2 text-[#0d1b2a] hover:text-[#2196f3] transition-colors">
-            <ShoppingCart size={22} />
-            {cartCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-[#2196f3] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </Link>
+          </div>
         </div>
       </header>
     </>
