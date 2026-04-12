@@ -21,50 +21,52 @@ export default function CartPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
-      <h1 className="text-2xl font-bold text-[#0d1b2a] mb-8 tracking-wide uppercase">Your Cart</h1>
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <h1 className="text-2xl font-bold text-[#0d1b2a] mb-6 sm:mb-8 tracking-wide uppercase">Your Cart</h1>
 
-      <div className="space-y-4 mb-8">
+      <div className="space-y-3 mb-8">
         {cart.map(item => (
-          <div key={item.slug} className="bg-white rounded-lg p-4 flex items-center gap-4 shadow-sm">
-            {/* Image */}
-            <div className="relative w-20 h-20 flex-shrink-0 bg-gray-50 rounded">
-              <Image src={item.image} alt={item.name} fill className="object-contain p-1" />
-            </div>
+          <div key={item.slug} className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              {/* Image */}
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-50 rounded">
+                <Image src={item.image} alt={item.name} fill className="object-contain p-1" />
+              </div>
 
-            {/* Name + price */}
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-[#0d1b2a] text-sm uppercase tracking-wide truncate">{item.name}</p>
-              <p className="text-gray-500 text-sm">${item.price.toFixed(2)} each</p>
-            </div>
+              {/* Name + price */}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-[#0d1b2a] text-xs sm:text-sm uppercase tracking-wide leading-snug mb-0.5">{item.name}</p>
+                <p className="text-gray-500 text-xs sm:text-sm">${item.price.toFixed(2)} each</p>
+              </div>
 
-            {/* Quantity controls */}
-            <div className="flex items-center gap-2">
+              {/* Remove */}
               <button
-                onClick={() => updateQuantity(item.slug, item.quantity - 1)}
-                className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                onClick={() => removeItem(item.slug)}
+                className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
               >
-                <Minus size={12} />
-              </button>
-              <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
-              <button
-                onClick={() => updateQuantity(item.slug, item.quantity + 1)}
-                className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition-colors"
-              >
-                <Plus size={12} />
+                <Trash2 size={16} />
               </button>
             </div>
 
-            {/* Line total */}
-            <p className="font-bold text-[#0d1b2a] w-16 text-right">${(item.price * item.quantity).toFixed(2)}</p>
-
-            {/* Remove */}
-            <button
-              onClick={() => removeItem(item.slug)}
-              className="text-gray-400 hover:text-red-500 transition-colors ml-2"
-            >
-              <Trash2 size={16} />
-            </button>
+            {/* Qty controls + line total on second row */}
+            <div className="flex items-center justify-between mt-3 pl-[76px] sm:pl-[92px]">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => updateQuantity(item.slug, item.quantity - 1)}
+                  className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                >
+                  <Minus size={12} />
+                </button>
+                <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
+                <button
+                  onClick={() => updateQuantity(item.slug, item.quantity + 1)}
+                  className="w-7 h-7 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+              <p className="font-bold text-[#0d1b2a] text-sm">${(item.price * item.quantity).toFixed(2)}</p>
+            </div>
           </div>
         ))}
       </div>

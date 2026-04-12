@@ -29,7 +29,7 @@ export default function ProductCard({ product }) {
     <Link href={`/shop/p/${product.slug}`} className="group block">
       <div className="flex flex-col h-full">
         {/* Image container — fixed height for consistent grid alignment */}
-        <div className="relative bg-white" style={{ height: '280px' }}>
+        <div className="relative bg-gray-50 rounded-lg h-[160px] sm:h-[220px] md:h-[280px]">
           <Image
             src={product.image}
             alt={product.name}

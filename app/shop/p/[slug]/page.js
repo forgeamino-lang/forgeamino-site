@@ -24,18 +24,18 @@ export default function ProductPage({ params }) {
   const mechanismsLabel = product.mechanismsLabel || 'Mechanisms of Action'
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-400 mb-8 flex items-center gap-1">
+      <nav className="text-xs text-gray-400 mb-6 sm:mb-8 flex items-center gap-1">
         <Link href="/shop" className="hover:text-[#2196f3] transition-colors">Shop</Link>
         <span>›</span>
         <span className="text-[#0d1b2a]">{product.name}</span>
       </nav>
 
       {/* Top section: image + right-side details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start mb-10 md:mb-12">
         {/* Product image */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm" style={{ height: '420px', position: 'relative' }}>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm relative h-[280px] sm:h-[360px] md:h-[420px]">
           <Image
             src={product.image}
             alt={product.name}

@@ -25,14 +25,14 @@ export default function Home() {
         </div>
 
         {/* Hero content — left-aligned, matching forgeamino.com */}
-        <div className="relative z-10 max-w-6xl mx-auto px-8 py-24 w-full">
+        <div className="relative z-10 max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-24 w-full">
           <div className="max-w-xl">
             {/* Badge pills */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {['Third Party Lab Tested', 'Fast and Reliable Shipping', 'Free Shipping on $250+ orders'].map((badge) => (
+            <div className="flex flex-wrap gap-2 mb-5">
+              {['Third Party Lab Tested', 'Fast Shipping', 'Free Shipping on $250+'].map((badge) => (
                 <span
                   key={badge}
-                  className="border border-white/70 text-white text-xs font-semibold tracking-wider px-3 py-1.5 rounded-full"
+                  className="border border-white/70 text-white text-xs font-semibold tracking-wide px-3 py-1.5 rounded-full whitespace-nowrap"
                 >
                   {badge}
                 </span>
@@ -40,17 +40,17 @@ export default function Home() {
             </div>
 
             {/* Headline */}
-            <p className="text-white text-base font-light tracking-widest uppercase mb-2">
+            <p className="text-white text-sm sm:text-base font-light tracking-widest uppercase mb-2">
               Your Source For
             </p>
-            <h1 className="text-5xl md:text-7xl font-black text-white uppercase leading-none tracking-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-black text-white uppercase leading-none tracking-tight mb-5">
               High Quality<br />
               Research<br />
               Peptides
             </h1>
 
             {/* Body text */}
-            <p className="text-white/90 text-base max-w-md mb-10 leading-relaxed">
+            <p className="text-white/90 text-sm sm:text-base max-w-md mb-8 leading-relaxed">
               At Forge Amino, every compound undergoes stringent{' '}
               <span className="font-semibold">independent 3rd party testing in a US laboratory</span>{' '}
               with verified 99%+ purity and QR link to the COA stamped on the vial.
@@ -70,9 +70,9 @@ export default function Home() {
       </section>
 
       {/* ── COMING SOON ── */}
-      <section className="bg-white py-20">
-        <div className="max-w-6xl mx-auto px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
+      <section className="bg-white py-12 md:py-20">
+        <div className="max-w-6xl mx-auto px-5 sm:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-start">
             <div>
               <h2 className="text-3xl font-black text-[#0d1b2a] uppercase leading-tight mb-6">
                 Coming Soon!!

@@ -10,7 +10,7 @@ export default function ShopPage() {
   const activeProducts = PRODUCTS.filter(p => p.inStock || p.price === 0)
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Sort/filter bar */}
       <div className="flex items-center justify-end mb-8 pb-4 border-b border-gray-200">
         <span className="text-xs text-gray-400 uppercase tracking-widest">
