@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
           <main className="min-h-screen">
             {children}
           </main>
-          <footer className="bg-[#0d1b2a] text-white py-12 mt-16">
+          <footer className="bg-[#0d1b2a] text-white py-12">
             <div className="max-w-4xl mx-auto px-6 text-center">
               <p className="font-bold tracking-widest text-lg mb-1">FORGE AMINO</p>
               <p className="text-[#4fc3f7] text-xs tracking-widest mb-8">RESEARCH PEPTIDES</p>
