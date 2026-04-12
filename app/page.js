@@ -56,19 +56,13 @@ export default function Home() {
               with verified 99%+ purity and QR link to the COA stamped on the vial.
             </p>
 
-            {/* CTA buttons */}
+            {/* CTA button */}
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/shop"
                 className="bg-[#2196f3] hover:bg-[#1976d2] text-white font-bold px-8 py-4 text-sm tracking-widest uppercase transition-colors"
               >
                 Shop Now
-              </Link>
-              <Link
-                href="/shop"
-                className="border-2 border-white text-white hover:bg-white hover:text-[#0d1b2a] font-bold px-8 py-4 text-sm tracking-widest uppercase transition-colors"
-              >
-                View All Products
               </Link>
             </div>
           </div>

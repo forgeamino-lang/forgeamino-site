@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { ShoppingCart } from 'lucide-react'
 import { useCart } from './CartContext'
 
@@ -17,18 +18,15 @@ export default function Header() {
       <header className="bg-white text-[#0d1b2a] sticky top-0 z-50 shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-9 h-9 relative">
-              <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-                <path d="M20 3 L35 11 L35 29 L20 37 L5 29 L5 11 Z" fill="none" stroke="#2196f3" strokeWidth="2"/>
-                <path d="M20 9 L30 15 L30 25 L20 31 L10 25 L10 15 Z" fill="#2196f3" opacity="0.15"/>
-                <path d="M15 20 L18 17 L22 17 L25 20 L22 23 L18 23 Z" fill="#2196f3"/>
-              </svg>
-            </div>
-            <div>
-              <div className="font-bold text-lg tracking-widest leading-none text-[#2196f3]">FORGE</div>
-              <div className="text-[#0d1b2a] text-xs tracking-widest leading-none">AMINO</div>
-            </div>
+          <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
+            <Image
+              src="/forge-amino-logo.png"
+              alt="Forge Amino"
+              width={160}
+              height={44}
+              className="h-11 w-auto"
+              priority
+            />
           </Link>
 
           {/* Nav */}
