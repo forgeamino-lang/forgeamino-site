@@ -18,14 +18,6 @@ export default function CheckoutPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const taxInfo = useMemo(() => {
-    if (!form.state) return { taxRate: 0, taxAmount: 0 }
-    return calculateTax(form.state, cartTotal)
-  }, [form.state, cartTotal])
-
-  const orderTotal = cartTotal + taxInfo.taxAmount
-
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -37,6 +29,13 @@ export default function CheckoutPage() {
     zip: '',
     paymentMethod: 'venmo',
   })
+
+  const taxInfo = useMemo(() => {
+    if (!form.state) return { taxRate: 0, taxAmount: 0 }
+    return calculateTax(form.state, cartTotal)
+  }, [form.state, cartTotal])
+
+  const orderTotal = cartTotal + taxInfo.taxAmount
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
