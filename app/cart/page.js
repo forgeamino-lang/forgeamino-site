@@ -109,7 +109,16 @@ export default function CartPage() {
             After checkout, payment instructions will be emailed to you immediately with everything you need to complete your order.
           </p>
         </div>
-
+{/* ── CUSTOM REQUEST BANNER ── */}
+        <div className="bg-[#f0f7ff] border border-[#2196f3]/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+                    <span className="text-lg flex-shrink-0">💬</span>
+                    <p className="text-sm text-[#0d1b2a]">
+                      <span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
+                      We&apos;re happy to help source it —{' '}
+            <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us →</Link>
+              </p>
+              </div>
+              
         <Link
           href="/checkout"
           className="block w-full text-center bg-[#0d1b2a] text-white py-4 rounded-full font-bold tracking-widest uppercase text-sm hover:bg-[#1a2e45] transition-colors"
