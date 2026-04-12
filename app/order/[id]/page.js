@@ -19,6 +19,9 @@ export default async function OrderConfirmationPage({ params }) {
   if (!order) notFound()
 
   const firstName = order.customer_name.split(' ')[0]
+  const subtotal = order.shipping_address.subtotal ?? order.total
+  const taxAmount = order.shipping_address.tax_amount ?? 0
+  const taxRate = order.shipping_address.tax_rate ?? 0
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
@@ -71,10 +74,27 @@ export default async function OrderConfirmationPage({ params }) {
             </div>
           ))}
         </div>
-        <div className="border-t pt-3 flex justify-between font-bold">
-          <span>Total</span>
-          <span>${order.total.toFixed(2)}</span>
-        </div>
+        {taxAmount > 0 ? (
+          <div className="border-t pt-3 space-y-2">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Subtotal</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Tax ({order.shipping_address.state} {((taxRate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
+              <span>${taxAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-bold pt-2 border-t">
+              <span>Total</span>
+              <span>${order.total.toFixed(2)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="border-t pt-3 flex justify-between font-bold">
+            <span>Total</span>
+            <span>${order.total.toFixed(2)}</span>
+          </div>
+        )}
       </div>
 
       {/* Shipping address */}

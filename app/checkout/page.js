@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useCart } from '../../components/CartContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { calculateTax, formatTaxRate } from '../../lib/tax'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -17,6 +18,13 @@ export default function CheckoutPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const taxInfo = useMemo(() => {
+    if (!form.state) return { taxRate: 0, taxAmount: 0 }
+    return calculateTax(form.state, cartTotal)
+  }, [form.state, cartTotal])
+
+  const orderTotal = cartTotal + taxInfo.taxAmount
 
   const [form, setForm] = useState({
     firstName: '',
@@ -62,7 +70,10 @@ export default function CheckoutPage() {
             price: i.price,
             quantity: i.quantity,
           })),
-          total: cartTotal,
+          subtotal: cartTotal,
+          tax_amount: taxInfo.taxAmount,
+          tax_rate: taxInfo.taxRate,
+          total: orderTotal,
         }),
       })
 
@@ -214,12 +225,24 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              <div className="border-t border-gray-100 pt-4 mb-6">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[#0d1b2a]">Total</span>
-                  <span className="font-bold text-[#0d1b2a] text-xl">${cartTotal.toFixed(2)}</span>
+              <div className="border-t border-gray-100 pt-4 mb-6 space-y-2">
+                <div className="flex justify-between items-center text-sm text-gray-600">
+                  <span>Subtotal</span>
+                  <span>${cartTotal.toFixed(2)}</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">+ shipping (calculated after payment)</p>
+                <div className="flex justify-between items-center text-sm text-gray-600">
+                  <span>
+                    Tax {form.state ? `(${form.state} ${formatTaxRate(taxInfo.taxRate)})` : ''}
+                  </span>
+                  <span>
+                    {form.state ? `$${taxInfo.taxAmount.toFixed(2)}` : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                  <span className="font-bold text-[#0d1b2a]">Total</span>
+                  <span className="font-bold text-[#0d1b2a] text-xl">${orderTotal.toFixed(2)}</span>
+                </div>
+                <p className="text-xs text-gray-400">+ shipping (calculated after payment)</p>
               </div>
 
               <button
@@ -231,7 +254,7 @@ export default function CheckoutPage() {
                     : 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
                   }`}
               >
-                {loading ? 'Placing Order…' : `Place Order — $${cartTotal.toFixed(2)}`}
+                {loading ? 'Placing Order…' : `Place Order — $${orderTotal.toFixed(2)}`}
               </button>
 
               <p className="text-xs text-gray-400 text-center mt-3">

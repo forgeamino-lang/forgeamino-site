@@ -12,6 +12,9 @@ export async function POST(request) {
       shipping_address,
       payment_method,
       line_items,
+      subtotal,
+      tax_amount,
+      tax_rate,
       total,
     } = body
 
@@ -23,6 +26,14 @@ export async function POST(request) {
     const supabase = createServerClient()
     const order_number = generateOrderNumber()
 
+    // Embed tax data in shipping_address JSONB to avoid schema changes
+    const shipping_address_with_tax = {
+      ...shipping_address,
+      subtotal: subtotal ?? total,
+      tax_amount: tax_amount ?? 0,
+      tax_rate: tax_rate ?? 0,
+    }
+
     // Insert order into database
     const { data, error } = await supabase
       .from('orders')
@@ -31,7 +42,7 @@ export async function POST(request) {
         customer_name,
         customer_email,
         customer_phone,
-        shipping_address,
+        shipping_address: shipping_address_with_tax,
         payment_method,
         line_items,
         total,
@@ -46,7 +57,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
     }
 
-    const order = { id: data.id, order_number, customer_name, customer_email, shipping_address, payment_method, line_items, total }
+    const order = {
+      id: data.id,
+      order_number,
+      customer_name,
+      customer_email,
+      shipping_address: shipping_address_with_tax,
+      payment_method,
+      line_items,
+      subtotal: subtotal ?? total,
+      tax_amount: tax_amount ?? 0,
+      tax_rate: tax_rate ?? 0,
+      total,
+    }
 
     // Send emails (non-blocking — don't fail the order if email fails)
     Promise.all([
