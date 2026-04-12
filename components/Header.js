@@ -10,11 +10,6 @@ export default function Header() {
 
   return (
     <>
-      {/* Announcement bar — top of page, matches forgeamino.com */}
-      <div className="bg-[#b3e5fc] text-[#0d1b2a] text-center py-2 text-xs font-semibold tracking-wide">
-        Use code FORGE100 at checkout — payment instructions will be emailed to you
-      </div>
-
       <header className="bg-white text-[#0d1b2a] sticky top-0 z-50 shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           {/* Logo */}
