@@ -75,8 +75,7 @@ export default function ProductPage({ params }) {
           <div className="mt-5 p-4 bg-[#f0f7ff] rounded-lg border border-[#2196f3]/20">
             <p className="text-xs text-[#0d1b2a] font-semibold mb-1">How Payment Works</p>
             <p className="text-xs text-gray-600 leading-relaxed">
-              Place your order, then send payment via Venmo to <strong>@ForgeA</strong>.
-              Full instructions will be emailed to you immediately after checkout.
+              Place your order and payment instructions will be emailed to you immediately after checkout.
             </p>
           </div>
 

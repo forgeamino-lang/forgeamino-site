@@ -38,34 +38,23 @@ export default async function OrderConfirmationPage({ params }) {
         <p className="text-xs text-gray-400 mt-2">Save this for reference</p>
       </div>
 
-      {/* VENMO PAYMENT INSTRUCTIONS — prominent */}
+      {/* PAYMENT INSTRUCTIONS — email callout */}
       <div className="bg-white rounded-xl border-2 border-[#ffc107] shadow-sm mb-6 overflow-hidden">
         <div className="bg-[#ffc107] px-6 py-3">
-          <p className="font-bold text-[#0d1b2a] text-sm tracking-wide">⚠️ COMPLETE YOUR PAYMENT NOW</p>
+          <p className="font-bold text-[#0d1b2a] text-sm tracking-wide">⚠️ CHECK YOUR EMAIL TO COMPLETE PAYMENT</p>
         </div>
         <div className="p-6">
-          <p className="text-sm text-gray-600 mb-5">Send your payment via Venmo to complete your order:</p>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
-              <span className="text-sm text-gray-500 font-medium">Venmo Handle</span>
-              <span className="text-xl font-bold text-[#3D95CE]">@ForgeA</span>
-            </div>
-            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
-              <span className="text-sm text-gray-500 font-medium">Amount</span>
-              <span className="text-xl font-bold text-[#0d1b2a]">${order.total.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between bg-red-50 rounded-lg p-4 border-2 border-red-300">
-              <span className="text-sm text-red-700 font-bold">Comment / Note Field</span>
-              <span className="text-xl font-bold text-red-600">"Thank you"</span>
-            </div>
+          <p className="text-sm text-gray-600 mb-4">
+            We've sent full payment instructions — including the Venmo handle, amount, and required note — to <strong>{order.customer_email}</strong>.
+          </p>
+          <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+            <span className="text-sm text-gray-500 font-medium">Amount Due</span>
+            <span className="text-xl font-bold text-[#0d1b2a]">${order.total.toFixed(2)}</span>
           </div>
-
-          {/* Hard warning */}
-          <div className="mt-5 bg-red-600 rounded-lg p-4 text-center">
-            <p className="text-white font-bold text-sm leading-snug">
+          <div className="mt-4 bg-red-50 border-2 border-red-300 rounded-lg p-4 text-center">
+            <p className="text-red-700 font-bold text-sm leading-snug">
               ⛔ You MUST write exactly "Thank you" in the Venmo comment.<br />
-              <span className="font-normal text-red-200 text-xs">Any other note = payment returned + order cancelled.</span>
+              <span className="font-normal text-red-500 text-xs">Any other note = payment returned + order cancelled.</span>
             </p>
           </div>
         </div>
@@ -103,7 +92,7 @@ export default async function OrderConfirmationPage({ params }) {
         <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">What Happens Next</h2>
         <ol className="space-y-3">
           {[
-            'Send your Venmo payment to @ForgeA with "Thank you" in the note',
+            'Check your email for payment instructions, then send your Venmo payment with "Thank you" in the note',
             'We verify your payment (usually within a few hours during business hours)',
             'You receive a "Payment Confirmed" email once we see it',
             'Your order ships within 1–2 business days — you\'ll get a tracking number by email',

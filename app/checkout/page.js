@@ -168,7 +168,7 @@ export default function CheckoutPage() {
                 </div>
                 <div>
                   <p className="font-bold text-[#0d1b2a] text-sm">Venmo</p>
-                  <p className="text-xs text-gray-500">Send to <strong>@ForgeA</strong> after placing order</p>
+                  <p className="text-xs text-gray-500">Payment details emailed to you after placing order</p>
                 </div>
                 {form.paymentMethod === 'venmo' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
               </label>

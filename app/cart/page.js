@@ -80,8 +80,7 @@ export default function CartPage() {
         <div className="bg-[#f0f7ff] rounded-lg p-4 mb-6 border border-[#2196f3]/20">
           <p className="text-xs font-bold text-[#0d1b2a] mb-1">💳 Payment via Venmo</p>
           <p className="text-xs text-gray-600">
-            After checkout, you'll send <strong>${cartTotal.toFixed(2)}</strong> to <strong>@ForgeA</strong> on Venmo.
-            Full instructions will be shown on screen and emailed to you.
+            After checkout, payment instructions will be emailed to you immediately with everything you need to complete your order.
           </p>
         </div>
 
