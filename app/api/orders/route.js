@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail, sendAdminOrderAlert } from '../../../lib/email'
-import { getAccessToken, findOrCreateCustomer, createSalesReceipt } from '../../../lib/quickbooks'
+import { getAccessToken, findOrCreateCustomer, createInvoice } from '../../../lib/quickbooks'
 
 async function syncToQuickBooks(order) {
   if (!process.env.QBO_REFRESH_TOKEN || !process.env.QBO_REALM_ID) return
@@ -13,7 +13,7 @@ async function syncToQuickBooks(order) {
     phone: order.customer_phone,
     address: order.shipping_address,
   })
-  await createSalesReceipt(accessToken, realmId, { customer, order })
+  await createInvoice(accessToken, realmId, { customer, order })
 }
 
 export async function POST(request) {
