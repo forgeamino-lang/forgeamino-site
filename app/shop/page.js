@@ -2,8 +2,16 @@ import { PRODUCTS } from '../../lib/products'
 import ProductCard from '../../components/ProductCard'
 
 export const metadata = {
-  title: 'Shop | Forge Amino',
-  description: 'Browse research peptides from Forge Amino.',
+  title: 'Shop Research Peptides | Forge Amino',
+  description: 'Browse our full catalog of research peptides — BPC-157, TB-500, Semaglutide, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
+  alternates: {
+    canonical: 'https://www.forgeamino.us/shop',
+  },
+  openGraph: {
+    title: 'Shop Research Peptides | Forge Amino',
+    description: 'Browse our full catalog of research peptides. All independently third-party lab tested with 99%+ purity.',
+    url: 'https://www.forgeamino.us/shop',
+  },
 }
 
 export default function ShopPage() {

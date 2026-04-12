@@ -2,8 +2,16 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata = {
-  title: 'Forge Amino | Explore Research Peptides Today',
-  description: 'Your source for high quality research peptides. Third party lab tested with 99%+ purity.',
+  title: 'Forge Amino | High-Quality Research Peptides',
+  description: 'Your source for high-quality research peptides. Every compound independently third-party tested in a US laboratory with verified 99%+ purity and QR-linked COA on each vial.',
+  alternates: {
+    canonical: 'https://www.forgeamino.us',
+  },
+  openGraph: {
+    title: 'Forge Amino | High-Quality Research Peptides',
+    description: 'Your source for high-quality research peptides. Every compound independently third-party tested in a US laboratory with verified 99%+ purity.',
+    url: 'https://www.forgeamino.us',
+  },
 }
 
 export default function Home() {

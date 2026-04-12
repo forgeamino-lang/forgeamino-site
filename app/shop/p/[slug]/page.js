@@ -8,12 +8,31 @@ export async function generateStaticParams() {
   return PRODUCTS.map(p => ({ slug: p.slug }))
 }
 
+const BASE_URL = 'https://www.forgeamino.us'
+
 export async function generateMetadata({ params }) {
   const product = getProductBySlug(params.slug)
   if (!product) return { title: 'Product Not Found' }
+  const description = (product.tagline || product.description || '').slice(0, 155)
+  const productUrl = `${BASE_URL}/shop/p/${product.slug}`
+  const imageUrl = `${BASE_URL}${product.image}`
   return {
-    title: `${product.name} | Forge Amino`,
-    description: product.tagline || product.description,
+    title: product.name,
+    description,
+    alternates: { canonical: productUrl },
+    openGraph: {
+      title: `${product.name} | Forge Amino`,
+      description,
+      url: productUrl,
+      type: 'website',
+      images: [{ url: imageUrl, width: 800, height: 800, alt: product.name }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${product.name} | Forge Amino`,
+      description,
+      images: [imageUrl],
+    },
   }
 }
 
@@ -23,7 +42,38 @@ export default function ProductPage({ params }) {
 
   const mechanismsLabel = product.mechanismsLabel || 'Mechanisms of Action'
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.tagline || product.description || '',
+    image: `${BASE_URL}${product.image}`,
+    url: `${BASE_URL}/shop/p/${product.slug}`,
+    brand: {
+      '@type': 'Brand',
+      name: 'Forge Amino',
+    },
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'USD',
+      price: product.price.toFixed(2),
+      availability: product.inStock && product.price > 0
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/PreOrder',
+      url: `${BASE_URL}/shop/p/${product.slug}`,
+      seller: {
+        '@type': 'Organization',
+        name: 'Forge Amino',
+      },
+    },
+  }
+
   return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Breadcrumb */}
       <nav className="text-xs text-gray-400 mb-6 sm:mb-8 flex items-center gap-1">
@@ -220,5 +270,6 @@ export default function ProductPage({ params }) {
 
       </div>
     </div>
+    </>
   )
 }

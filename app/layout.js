@@ -4,9 +4,54 @@ import Header from '../components/Header'
 import Link from 'next/link'
 import { Toaster } from 'react-hot-toast'
 
+const BASE_URL = 'https://www.forgeamino.us'
+
 export const metadata = {
-  title: 'Forge Amino | Research Peptides',
-  description: 'Explore research peptides from Forge Amino. For research purposes only.',
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: 'Forge Amino | Research Peptides',
+    template: '%s | Forge Amino',
+  },
+  description: 'High-quality research peptides from Forge Amino. Every compound is independently third-party tested in a US laboratory with verified 99%+ purity. For research purposes only.',
+  keywords: ['research peptides', 'BPC-157', 'TB-500', 'CJC-1295', 'Ipamorelin', 'Semaglutide', 'peptide supplier', 'third party tested peptides'],
+  authors: [{ name: 'Forge Amino' }],
+  creator: 'Forge Amino',
+  publisher: 'Forge Amino',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: BASE_URL,
+    siteName: 'Forge Amino',
+    title: 'Forge Amino | Research Peptides',
+    description: 'High-quality research peptides independently third-party tested in a US laboratory with verified 99%+ purity.',
+    images: [
+      {
+        url: '/hero-bg.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Forge Amino Research Peptides',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Forge Amino | Research Peptides',
+    description: 'High-quality research peptides independently third-party tested in a US laboratory with verified 99%+ purity.',
+    images: ['/hero-bg.jpg'],
+  },
+  alternates: {
+    canonical: BASE_URL,
+  },
 }
 
 export default function RootLayout({ children }) {
