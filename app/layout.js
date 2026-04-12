@@ -3,6 +3,7 @@ import { CartProvider } from '../components/CartContext'
 import Header from '../components/Header'
 import Link from 'next/link'
 import { Toaster } from 'react-hot-toast'
+import { ClerkProvider } from '@clerk/nextjs'
 
 const BASE_URL = 'https://www.forgeamino.us'
 
@@ -56,6 +57,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
+    <ClerkProvider>
     <html lang="en">
       <body>
         <CartProvider>
@@ -96,5 +98,6 @@ export default function RootLayout({ children }) {
         </CartProvider>
       </body>
     </html>
+    </ClerkProvider>
   )
 }
