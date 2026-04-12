@@ -299,11 +299,29 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
+                {/* Shipping row */}
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 flex items-center gap-1">
+                    Shipping
+                    <span className="text-xs text-gray-400">(FedEx 2-Day)</span>
+                  </span>
+                  {cartTotal >= 250 ? (
+                    <span className="text-green-600 font-semibold text-sm">FREE</span>
+                  ) : (
+                    <span className="text-gray-500 text-xs">Calculated at fulfillment</span>
+                  )}
+                </div>
+                {cartTotal < 250 && (
+                  <p className="text-xs text-[#2196f3] pl-0">
+                    Add ${(250 - cartTotal).toFixed(2)} more for free shipping
+                  </p>
+                )}
+
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                   <span className="font-bold text-[#0d1b2a]">Total</span>
                   <span className="font-bold text-[#0d1b2a] text-xl">${orderTotal.toFixed(2)}</span>
                 </div>
-                <p className="text-xs text-gray-400">+ shipping (calculated after payment)</p>
+                <p className="text-xs text-gray-400 text-center">All orders ship to the United States only.</p>
               </div>
 
               <button
