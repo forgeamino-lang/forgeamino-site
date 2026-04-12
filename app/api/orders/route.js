@@ -86,8 +86,7 @@ export async function POST(request) {
     }
 
     // Send emails + sync to QuickBooks (non-blocking — don't fail the order if these fail)
-    Promise.all([
-      sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),
+    await Promise.all([      sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),
       sendAdminOrderAlert(order).catch(e => console.error('Admin email failed:', e)),
       syncToQuickBooks(order).catch(e => console.error('QuickBooks sync failed:', e)),
     ])
