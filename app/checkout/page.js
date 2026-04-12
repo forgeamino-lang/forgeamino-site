@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useCart } from '../../components/CartContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { calculateTax, formatTaxRate } from '../../lib/tax'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -30,12 +29,38 @@ export default function CheckoutPage() {
     paymentMethod: 'venmo',
   })
 
-  const taxInfo = useMemo(() => {
-    if (!form.state) return { taxRate: 0, taxAmount: 0 }
-    return calculateTax(form.state, cartTotal)
-  }, [form.state, cartTotal])
+  // Live tax rate from TaxJar (includes state + county + city)
+  const [taxData, setTaxData] = useState(null)   // full TaxJar rate object
+  const [taxLoading, setTaxLoading] = useState(false)
 
-  const orderTotal = cartTotal + taxInfo.taxAmount
+  useEffect(() => {
+    // Need at least a 5-digit zip and a state to look up
+    if (!form.state || !form.zip || form.zip.replace(/\D/g, '').length < 5) {
+      setTaxData(null)
+      return
+    }
+    setTaxLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ zip: form.zip, state: form.state })
+        if (form.city) params.set('city', form.city)
+        const res = await fetch(`/api/tax-rate?${params}`)
+        if (res.ok) {
+          const data = await res.json()
+          setTaxData(data)
+        }
+      } catch (e) {
+        console.error('Tax lookup failed:', e)
+      } finally {
+        setTaxLoading(false)
+      }
+    }, 600) // 600ms debounce
+    return () => clearTimeout(timer)
+  }, [form.zip, form.state, form.city])
+
+  const combinedRate = taxData ? parseFloat(taxData.combined_rate) : 0
+  const taxAmount    = Math.round(cartTotal * combinedRate * 100) / 100
+  const orderTotal   = cartTotal + taxAmount
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -70,8 +95,8 @@ export default function CheckoutPage() {
             quantity: i.quantity,
           })),
           subtotal: cartTotal,
-          tax_amount: taxInfo.taxAmount,
-          tax_rate: taxInfo.taxRate,
+          tax_amount: taxAmount,
+          tax_rate: combinedRate,
           total: orderTotal,
         }),
       })
@@ -229,14 +254,51 @@ export default function CheckoutPage() {
                   <span>Subtotal</span>
                   <span>${cartTotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm text-gray-600">
-                  <span>
-                    Tax {form.state ? `(${form.state} ${formatTaxRate(taxInfo.taxRate)})` : ''}
-                  </span>
-                  <span>
-                    {form.state ? `$${taxInfo.taxAmount.toFixed(2)}` : '—'}
-                  </span>
-                </div>
+
+                {/* Tax lines */}
+                {taxLoading ? (
+                  <div className="flex justify-between items-center text-sm text-gray-400">
+                    <span>Tax</span>
+                    <span className="animate-pulse">Calculating…</span>
+                  </div>
+                ) : taxData ? (
+                  <div className="space-y-1">
+                    {parseFloat(taxData.state_rate) > 0 && (
+                      <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
+                        <span>{taxData.state} State ({(parseFloat(taxData.state_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
+                        <span>${(cartTotal * parseFloat(taxData.state_rate)).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {taxData.county && parseFloat(taxData.county_rate) > 0 && (
+                      <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
+                        <span>{taxData.county} Co. ({(parseFloat(taxData.county_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
+                        <span>${(cartTotal * parseFloat(taxData.county_rate)).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {taxData.city && parseFloat(taxData.city_rate) > 0 && (
+                      <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
+                        <span>{taxData.city} City ({(parseFloat(taxData.city_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
+                        <span>${(cartTotal * parseFloat(taxData.city_rate)).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {parseFloat(taxData.combined_district_rate) > 0 && (
+                      <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
+                        <span>District ({(parseFloat(taxData.combined_district_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
+                        <span>${(cartTotal * parseFloat(taxData.combined_district_rate)).toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-sm text-gray-600 font-medium pt-1">
+                      <span>Tax Total ({(combinedRate * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
+                      <span>${taxAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center text-sm text-gray-400">
+                    <span>Tax</span>
+                    <span>{form.state && form.zip ? 'Enter full ZIP to calculate' : '—'}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                   <span className="font-bold text-[#0d1b2a]">Total</span>
                   <span className="font-bold text-[#0d1b2a] text-xl">${orderTotal.toFixed(2)}</span>
