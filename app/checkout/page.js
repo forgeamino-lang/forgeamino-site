@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useCart } from '../../components/CartContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -123,6 +124,15 @@ export default function CheckoutPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       <h1 className="text-2xl font-bold text-[#0d1b2a] mb-6 sm:mb-8 tracking-wide uppercase">Checkout</h1>
+      {/* ── CUSTOM REQUEST BANNER ── */}
+      <div className="bg-[#f0f7ff] border border-[#2196f3]/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+        <span className="text-lg flex-shrink-0">💬</span>
+        <p className="text-sm text-[#0d1b2a]">
+          <span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
+          We&apos;re happy to help source it —{' '}
+          <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us →</Link>
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
