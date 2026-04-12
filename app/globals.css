@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #0d1b2a;
+  --navy-light: #1a2e45;
+  --forge-blue: #2196f3;
+  --forge-accent: #4fc3f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #f8f8f8;
+  color: #0d1b2a;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Product grid — 3 equal columns */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+
+@media (max-width: 900px) {
+  .product-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  .product-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
