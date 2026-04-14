@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Disclaimers | Ensure Safe Research Practices Today — Forge Amino',
-  description: 'Product use disclaimer for Forge Amino, LLC. All products are for laboratory research purposes only.',
+  title: 'Research Disclaimers',
+  description: 'Read Forge Amino\'s research disclaimer. All peptides are sold strictly for laboratory research purposes only and are not intended for human consumption or medical use.',
 }
 
 export default function Disclaimers() {
