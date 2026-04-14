@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Terms of Use — Forge Amino',
-  description: 'Terms of use for Forge Amino, LLC. Governing your access to and use of our website and products.',
+  title: 'Terms of Use',
+  description: 'Review Forge Amino\'s terms of use governing your access to our website and the purchase of research peptide products.',
 }
 
 export default function TermsOfUse() {
