@@ -22,12 +22,17 @@ export default function CheckoutPage() {
   // Pre-fill form from Clerk profile when signed in
   useEffect(() => {
     if (isSignedIn && user) {
+          const saved = user.unsafeMetadata?.shippingAddress || {}
       setForm(prev => ({
         ...prev,
         firstName: prev.firstName || user.firstName || '',
         lastName: prev.lastName || user.lastName || '',
         email: prev.email || user.primaryEmailAddress?.emailAddress || '',
         phone: prev.phone || user.primaryPhoneNumber?.phoneNumber || '',
+                street: prev.street || saved.street || '',
+                city: prev.city || saved.city || '',
+                state: prev.state || saved.state || '',
+                zip: prev.zip || saved.zip || '',
       }))
     }
   }, [isSignedIn, user])
@@ -122,6 +127,18 @@ export default function CheckoutPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to place order')
 
       clearCart()
+            if (isSignedIn && user && form.street) {
+                      try {
+                                  await user.update({
+                                                unsafeMetadata: {
+                                                                ...user.unsafeMetadata,
+                                                                shippingAddress: { street: form.street, city: form.city, state: form.state, zip: form.zip },
+                                                },
+                                  })
+                      } catch (e) {
+                                  console.warn('Could not save address to profile:', e)
+                      }
+            }
       router.push(`/order/${data.orderId}`)
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
