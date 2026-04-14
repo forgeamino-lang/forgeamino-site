@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import { ClerkProvider } from '@clerk/nextjs'
 import AgeGate from '../components/AgeGate'
 
-const BASE_URL = 'https://www.forgeamino.us'
+const BASE_URL = 'https://www.forgeamino.com'
 
 export const metadata = {
   metadataBase: new URL(BASE_URL),
@@ -53,6 +53,9 @@ export const metadata = {
   },
   alternates: {
     canonical: BASE_URL,
+  },
+  verification: {
+    google: 'ioubpKHqA0XrTNasJSx8SqbF3sJ40Tgs1ObpSop0gzc',
   },
 }
 
