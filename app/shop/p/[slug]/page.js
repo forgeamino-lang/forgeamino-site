@@ -8,7 +8,7 @@ export async function generateStaticParams() {
   return PRODUCTS.map(p => ({ slug: p.slug }))
 }
 
-const BASE_URL = 'https://www.forgeamino.us'
+const BASE_URL = 'https://www.forgeamino.com'
 
 export async function generateMetadata({ params }) {
   const product = getProductBySlug(params.slug)
