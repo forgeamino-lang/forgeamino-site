@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Privacy Policy | Protect Your Privacy Today — Forge Amino',
-  description: 'Privacy policy for Forge Amino, LLC. Learn how we collect, use, and protect your information.',
+  title: 'Privacy Policy',
+  description: 'Forge Amino\'s privacy policy — how we collect, use, and protect your personal information when you visit or purchase from forgeamino.com.',
 }
 
 export default function PrivacyPolicy() {
