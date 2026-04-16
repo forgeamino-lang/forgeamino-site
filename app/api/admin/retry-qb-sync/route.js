@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '../../../../lib/supabase'
 import { syncToQuickBooks } from '../../../../lib/quickbooks'
+import { requireAdmin } from '../../../../lib/adminAuth'
 
 // Admin-protected retry endpoint for failed QuickBooks syncs.
 // Usage: GET /api/admin/retry-qb-sync?key=ADMIN_PASSWORD&order_id=UUID
 //        GET /api/admin/retry-qb-sync?key=ADMIN_PASSWORD&order_number=FA-...
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
-  const key = searchParams.get('key')
+  const authFail = requireAdmin(request)
+  if (authFail) return authFail
+
   const orderId = searchParams.get('order_id')
   const orderNumber = searchParams.get('order_number')
-
-  if (!process.env.ADMIN_PASSWORD || key !== process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
 
   if (!orderId && !orderNumber) {
     return NextResponse.json(
