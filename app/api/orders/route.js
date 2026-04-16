@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail, sendAdminOrderAlert } from '../../../lib/email'
 import { getAccessToken, findOrCreateCustomer, createInvoice } from '../../../lib/quickbooks'
+import { requireAdmin } from '../../../lib/adminAuth'
 
 async function syncToQuickBooks(order) {
   if (!process.env.QBO_REFRESH_TOKEN || !process.env.QBO_REALM_ID) return
@@ -100,12 +101,8 @@ export async function POST(request) {
 
 export async function GET(request) {
   // Admin only: list all orders
-  const { searchParams } = new URL(request.url)
-  const adminKey = searchParams.get('key')
-
-  if (adminKey !== process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authFail = requireAdmin(request)
+  if (authFail) return authFail
 
   const supabase = createServerClient()
   const { data, error } = await supabase
