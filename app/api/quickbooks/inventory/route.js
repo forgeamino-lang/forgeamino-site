@@ -6,6 +6,8 @@ const BASE_URL =
     ? 'https://quickbooks.api.intuit.com'
     : 'https://sandbox-quickbooks.api.intuit.com'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     if (!process.env.QBO_REFRESH_TOKEN || !process.env.QBO_REALM_ID) {
@@ -19,6 +21,7 @@ export async function GET() {
     const url = `${BASE_URL}/v3/company/${realmId}/query?query=${encodeURIComponent(query)}&minorversion=65`
 
     const resp = await fetch(url, {
+      cache: 'no-store',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
