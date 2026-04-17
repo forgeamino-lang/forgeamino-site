@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
-import { sendOrderConfirmationEmail, sendAdminOrderAlert } from '../../../lib/email'
+import { sendOrderConfirmationEmail } from '../../../lib/email'
 import { getAccessToken, findOrCreateCustomer, createInvoice } from '../../../lib/quickbooks'
 import { requireAdmin } from '../../../lib/adminAuth'
 
@@ -87,10 +87,9 @@ export async function POST(request) {
     }
 
     // Send emails + sync to QuickBooks (non-blocking — don't fail the order if these fail)
-    await Promise.all([      sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),
-      sendAdminOrderAlert(order).catch(e => console.error('Admin email failed:', e)),
-      syncToQuickBooks(order).catch(e => console.error('QuickBooks sync failed:', { order_number, customer_name, customer_email, error: e?.message, stack: e?.stack, raw: String(e) })),
-    ])
+    await Promise.all([      sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),),
+      syncToQuickBooks(order).catch(e => console.error('QuickBooks sync failed:', { order_number, customer_name, customer_email, error: e?.message, stack: e?.stack, raw: String(e) }))
+  ])
 
     return NextResponse.json({ orderId: data.id, orderNumber: order_number })
   } catch (err) {
