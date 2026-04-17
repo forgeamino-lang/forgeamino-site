@@ -1,21 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail } from '../../../lib/email'
-import { getAccessToken, findOrCreateCustomer, createInvoice } from '../../../lib/quickbooks'
+import { syncToQuickBooks } from '../../../lib/quickbooks'
 import { requireAdmin } from '../../../lib/adminAuth'
-
-async function syncToQuickBooks(order) {
-  if (!process.env.QBO_REFRESH_TOKEN || !process.env.QBO_REALM_ID) return
-  const accessToken = await getAccessToken()
-  const realmId = process.env.QBO_REALM_ID
-  const customer = await findOrCreateCustomer(accessToken, realmId, {
-    name: order.customer_name,
-    email: order.customer_email,
-    phone: order.customer_phone,
-    address: order.shipping_address,
-  })
-  await createInvoice(accessToken, realmId, { customer, order })
-}
 
 export async function POST(request) {
   try {
