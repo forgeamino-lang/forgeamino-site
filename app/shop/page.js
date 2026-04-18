@@ -16,7 +16,7 @@ export const metadata = {
 }
 
 export default function ShopPage() {
-  const activeProducts = PRODUCTS.filter(p => p.inStock || p.price === 0)
+  const activeProducts = PRODUCTS.filter(p => (p.inStock || p.price === 0) && !p.hidden)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">

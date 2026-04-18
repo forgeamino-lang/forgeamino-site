@@ -4,15 +4,17 @@ import Link from 'next/link'
 import { PRODUCTS, getProductBySlug, formatPrice } from '../../../../lib/products'
 import AddToCartButton from './AddToCartButton'
 
+export const dynamicParams = false
+
 export async function generateStaticParams() {
-  return PRODUCTS.map(p => ({ slug: p.slug }))
+  return PRODUCTS.filter(p => !p.hidden).map(p => ({ slug: p.slug }))
 }
 
 const BASE_URL = 'https://www.forgeamino.com'
 
 export async function generateMetadata({ params }) {
   const product = getProductBySlug(params.slug)
-  if (!product) return { title: 'Product Not Found' }
+  if (!product || product.hidden) return { title: 'Product Not Found' }
   const description = (product.tagline || product.description || '').slice(0, 155)
   const productUrl = `${BASE_URL}/shop/p/${product.slug}`
   const imageUrl = `${BASE_URL}${product.image}`
@@ -38,7 +40,7 @@ export async function generateMetadata({ params }) {
 
 export default function ProductPage({ params }) {
   const product = getProductBySlug(params.slug)
-  if (!product) notFound()
+  if (!product || product.hidden) notFound()
 
   const mechanismsLabel = product.mechanismsLabel || 'Mechanisms of Action'
 
