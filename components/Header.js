@@ -26,6 +26,9 @@ export default function Header() {
                           <Link href="/shop" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
                             Shop
             </Link>
+              <Link href="/lab" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
+                            Lab
+            </Link>
               <Link href="/contact" className="text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase">
                             Contact
             </Link>
@@ -77,6 +80,10 @@ export default function Header() {
               <Link href="/shop" onClick={() => setMenuOpen(false)}
               className="block text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase py-3 border-b border-gray-50">
                               Shop
+                </Link>
+            <Link href="/lab" onClick={() => setMenuOpen(false)}
+              className="block text-sm tracking-widest font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase py-3 border-b border-gray-50">
+                              Lab
                 </Link>
             <Link href="/contact" onClick={() => setMenuOpen(false)}
               className="block text-sm tracking-widests font-semibold text-[#0d1b2a] hover:text-[#2196f3] transition-colors uppercase py-3 border-b border-gray-50">

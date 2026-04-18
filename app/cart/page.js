@@ -29,8 +29,18 @@ export default function CartPage() {
           <div key={item.slug} className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
             <div className="flex items-center gap-3">
               {/* Image */}
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-50 rounded">
-                <Image src={item.image} alt={item.name} fill className="object-contain p-1" />
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-gray-50 rounded overflow-hidden">
+                {item.image ? (
+                  <Image src={item.image} alt={item.name} fill className="object-contain p-1" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#0d1b2a] via-[#15263d] to-[#0d1b2a]">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a227" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/>
+                      <line x1="8.5" y1="2" x2="15.5" y2="2"/>
+                      <line x1="7" y1="16" x2="17" y2="16"/>
+                    </svg>
+                  </div>
+                )}
               </div>
 
               {/* Name + price */}
