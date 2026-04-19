@@ -41,9 +41,14 @@ export default function LabPage() {
     )
   }
 
-  // Unlocked: regular (non-hidden) + hidden products.
-  const regular = PRODUCTS.filter(p => (p.inStock || p.price === 0) && !p.hidden)
-  const hidden  = PRODUCTS.filter(p => (p.inStock || p.price === 0) && p.hidden)
+  // Unlocked: three buckets --
+  //   labOnly      : hidden && !prescription   (R / S / T -- Restricted Access)
+  //   prescription : hidden && prescription    (compounded Rx from 503a/503b)
+  //   regular      : !hidden                   (Standard Catalog -- Shop mirror)
+  const inStockOrSoon = p => p.inStock || p.price === 0
+  const labOnly      = PRODUCTS.filter(p => inStockOrSoon(p) && p.hidden && !p.prescription)
+  const prescription = PRODUCTS.filter(p => inStockOrSoon(p) && p.hidden &&  p.prescription)
+  const regular      = PRODUCTS.filter(p => inStockOrSoon(p) && !p.hidden)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
@@ -57,25 +62,49 @@ export default function LabPage() {
             LAB
           </span>
           <span className="text-xs text-gray-400 uppercase tracking-widest">
-            Unlocked — {hidden.length} restricted + {regular.length} standard
+            Unlocked — {labOnly.length} restricted + {prescription.length} prescription + {regular.length} standard
           </span>
         </div>
         <LabControls />
       </div>
 
-      {/* Hidden products first */}
-      {hidden.length > 0 && (
+      {/* Restricted Access (R / S / T) */}
+      {labOnly.length > 0 && (
         <div className="mb-10">
           <h2 className="text-xs font-bold uppercase tracking-widest text-[#c9a227] mb-4">Restricted Access</h2>
           <div className="product-grid">
-            {hidden.map(p => <LabProductCard key={p.id} product={p} />)}
+            {labOnly.map(p => <LabProductCard key={p.id} product={p} />)}
           </div>
         </div>
       )}
 
-      {hidden.length === 0 && (
+      {labOnly.length === 0 && (
         <div className="mb-10 p-6 bg-gray-50 border border-gray-200 rounded-lg text-center">
           <p className="text-sm text-gray-500">No restricted-access products available right now.</p>
+        </div>
+      )}
+
+      {/* Prescription Only -- compounded peptides cold-shipped by 503a/503b pharmacy */}
+      {prescription.length > 0 && (
+        <div className="mb-10">
+          <div className="mb-5 rounded-lg border border-[#c9a227]/40 bg-[#fffaf0] px-5 py-4">
+            <p className="text-xs sm:text-sm text-[#0d1b2a] leading-relaxed">
+              <span className="font-bold uppercase tracking-widest text-[#c9a227] text-[11px] block mb-1.5">Please Note</span>
+              The following menu contains peptides that are <strong>BY PRESCRIPTION ONLY</strong>, and will be compounded and cold shipped directly to you by a 503a or 503b pharmacy. Please select the item and quantity that your physician has instructed you to order and once payment has been received, the prescription order will be sent to the pharmacy for shipping directly to you.
+            </p>
+          </div>
+
+          <h2 className="text-xs font-bold uppercase tracking-widest text-[#c9a227] mb-4">Prescription Only</h2>
+          <div className="product-grid">
+            {prescription.map(p => <LabProductCard key={p.id} product={p} />)}
+          </div>
+
+          <div className="mt-6 rounded-lg border border-[#c9a227]/40 bg-[#fffaf0] px-5 py-4">
+            <p className="text-xs sm:text-sm text-[#0d1b2a] leading-relaxed">
+              <span className="font-bold uppercase tracking-widest text-[#c9a227] text-[11px] block mb-1.5">Please Note</span>
+              Once the pharmacy receives your prescription it usually takes 5-7 days for you to receive. Due to cold shipping, no orders will be shipped over the weekend. Once you receive your medication, it must be refrigerated and protected from light. Please follow all prescription dosing instructions you receive with the medication.
+            </p>
+          </div>
         </div>
       )}
 
