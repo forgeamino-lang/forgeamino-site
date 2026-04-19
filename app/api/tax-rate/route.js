@@ -6,6 +6,7 @@ export async function GET(request) {
   const zip   = searchParams.get('zip')?.trim()
   const city  = searchParams.get('city')?.trim()?.toUpperCase()
   const state = searchParams.get('state')?.trim()?.toUpperCase()
+  const debug = searchParams.get('debug') === '1'
 
   if (!zip || !state) {
     return NextResponse.json({ error: 'zip and state are required' }, { status: 400 })
@@ -69,7 +70,7 @@ export async function GET(request) {
     }
 
     // Normalise into the same shape the checkout & email code expects
-    return NextResponse.json({
+    const normalized = {
       zip:                    result.geoPostalCode ?? zip,
       state:                  result.geoState      ?? state,
       city:                   result.geoCity        ?? city,
@@ -79,7 +80,21 @@ export async function GET(request) {
       city_rate:              String(result.citySalesTax   ?? 0),
       combined_district_rate: String(result.districtSalesTax ?? 0),
       combined_rate:          String(result.taxSales        ?? 0),
-    })
+    }
+    if (debug) {
+      // Unredacted zip-tax response so we can see every jurisdiction returned
+      // for this ZIP and which one the picker chose. ?debug=1 only.
+      normalized._debug = {
+        rCode: data.rCode,
+        resultCount: data.results?.length ?? 0,
+        results: data.results,
+        picked_index: data.results?.indexOf(result) ?? -1,
+        picker_used: (city && data.results.length > 1
+          && data.results.find(r => r.geoCity?.toUpperCase() === city)
+        ) ? 'city_match' : 'first_result',
+      }
+    }
+    return NextResponse.json(normalized)
   } catch (err) {
     console.error('zip.tax fetch failed:', err)
     return stateFallback()
