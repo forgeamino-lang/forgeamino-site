@@ -22,6 +22,9 @@ export default async function OrderConfirmationPage({ params }) {
   const subtotal = order.shipping_address.subtotal ?? order.total
   const taxAmount = order.shipping_address.tax_amount ?? 0
   const taxRate = order.shipping_address.tax_rate ?? 0
+  const shippingAmount = Number(order.shipping_address.shipping_amount ?? 0)
+  const shippingMethod = order.shipping_address.shipping_method
+  const shippingLabel = shippingMethod === 'local_delivery' ? 'Local Delivery' : 'FedEx 2-Day'
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
@@ -74,27 +77,28 @@ export default async function OrderConfirmationPage({ params }) {
             </div>
           ))}
         </div>
-        {taxAmount > 0 ? (
-          <div className="border-t pt-3 space-y-2">
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
-            </div>
+        <div className="border-t pt-3 space-y-2">
+          <div className="flex justify-between text-sm text-gray-500">
+            <span>Subtotal</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+          {taxAmount > 0 && (
             <div className="flex justify-between text-sm text-gray-500">
               <span>Tax ({order.shipping_address.state} {((taxRate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
               <span>${taxAmount.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between font-bold pt-2 border-t">
-              <span>Total</span>
-              <span>${order.total.toFixed(2)}</span>
+          )}
+          {shippingMethod && (
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Shipping ({shippingLabel})</span>
+              <span>{shippingAmount === 0 ? <span className="text-green-600 font-semibold">FREE</span> : `$${shippingAmount.toFixed(2)}`}</span>
             </div>
-          </div>
-        ) : (
-          <div className="border-t pt-3 flex justify-between font-bold">
+          )}
+          <div className="flex justify-between font-bold pt-2 border-t">
             <span>Total</span>
             <span>${order.total.toFixed(2)}</span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Shipping address */}

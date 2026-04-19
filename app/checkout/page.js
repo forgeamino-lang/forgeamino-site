@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
+import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../lib/shipping'
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -49,6 +50,7 @@ export default function CheckoutPage() {
     state: '',
     zip: '',
     paymentMethod: 'venmo',
+    shippingMethod: 'fedex_2day',
   })
 
   // Live tax rate from TaxJar (includes state + county + city)
@@ -82,7 +84,10 @@ export default function CheckoutPage() {
 
   const combinedRate = taxData ? parseFloat(taxData.combined_rate) : 0
   const taxAmount    = Math.round(cartTotal * combinedRate * 100) / 100
-  const orderTotal   = cartTotal + taxAmount
+  // Shipping is computed in lib/shipping so the rule lives in exactly one place.
+  // Tax base stays on subtotal only — shipping is not taxed.
+  const shippingAmount = computeShipping(cartTotal, form.shippingMethod)
+  const orderTotal   = cartTotal + taxAmount + shippingAmount
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -109,6 +114,7 @@ export default function CheckoutPage() {
             zip: form.zip,
           },
           payment_method: form.paymentMethod,
+          shipping_method: form.shippingMethod,
           line_items: cart.map(i => ({
             id: i.id,
             slug: i.slug,
@@ -250,6 +256,40 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+
+            {/* Shipping method */}
+            <div className="bg-white rounded-lg p-6 shadow-sm">
+              <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Shipping Method</h2>
+
+              <label className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${form.shippingMethod === 'fedex_2day' ? 'border-[#2196f3] bg-[#f0f7ff]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <input type="radio" name="shippingMethod" value="fedex_2day" checked={form.shippingMethod === 'fedex_2day'} onChange={handleChange} className="sr-only" />
+                <div className="w-10 h-10 rounded-lg bg-[#4d148c] flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-xs">FedEx</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-[#0d1b2a] text-sm">FedEx 2-Day {cartTotal >= FREE_SHIPPING_THRESHOLD ? <span className="text-green-600">— FREE</span> : <span className="text-gray-500 font-normal">— $12.00</span>}</p>
+                  <p className="text-xs text-gray-500">
+                    {cartTotal >= FREE_SHIPPING_THRESHOLD
+                      ? 'You qualify for free shipping (orders $250+)'
+                      : `Add $${(FREE_SHIPPING_THRESHOLD - cartTotal).toFixed(2)} more to qualify for free shipping`}
+                  </p>
+                </div>
+                {form.shippingMethod === 'fedex_2day' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
+              </label>
+
+              <label className={`mt-3 flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${form.shippingMethod === 'local_delivery' ? 'border-[#2196f3] bg-[#f0f7ff]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <input type="radio" name="shippingMethod" value="local_delivery" checked={form.shippingMethod === 'local_delivery'} onChange={handleChange} className="sr-only" />
+                <div className="w-10 h-10 rounded-lg bg-[#0d1b2a] flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-lg">📍</span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-[#0d1b2a] text-sm">Local Delivery <span className="text-green-600">— FREE</span></p>
+                  <p className="text-xs text-gray-500">We'll coordinate drop-off directly. Select this only if you're local.</p>
+                </div>
+                {form.shippingMethod === 'local_delivery' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
+              </label>
+            </div>
+
             {/* Payment method */}
             <div className="bg-white rounded-lg p-6 shadow-sm">
               <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Payment Method</h2>
@@ -375,17 +415,17 @@ export default function CheckoutPage() {
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 flex items-center gap-1">
                     Shipping
-                    <span className="text-xs text-gray-400">(FedEx 2-Day)</span>
+                    <span className="text-xs text-gray-400">({shippingLabel(form.shippingMethod)})</span>
                   </span>
-                  {cartTotal >= 250 ? (
+                  {shippingAmount === 0 ? (
                     <span className="text-green-600 font-semibold text-sm">FREE</span>
                   ) : (
-                    <span className="text-gray-500 text-xs">Calculated at fulfillment</span>
+                    <span className="text-gray-700">${shippingAmount.toFixed(2)}</span>
                   )}
                 </div>
-                {cartTotal < 250 && (
+                {form.shippingMethod === 'fedex_2day' && cartTotal < FREE_SHIPPING_THRESHOLD && (
                   <p className="text-xs text-[#2196f3] pl-0">
-                    Add ${(250 - cartTotal).toFixed(2)} more for free shipping
+                    Add ${(FREE_SHIPPING_THRESHOLD - cartTotal).toFixed(2)} more for free shipping
                   </p>
                 )}
 

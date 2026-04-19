@@ -16,6 +16,7 @@ export async function POST(request) {
       customer_phone,
       shipping_address,
       payment_method,
+      shipping_method,
       line_items,
       subtotal,
       tax_amount,
@@ -44,8 +45,10 @@ export async function POST(request) {
       subtotal: server_subtotal,
       tax_rate: trusted_tax_rate,
       tax_amount: server_tax_amount,
+      shipping_method: trusted_shipping_method,
+      shipping_amount: server_shipping_amount,
       total: server_total,
-    } = computeOrderTotals(validated_line_items, tax_rate)
+    } = computeOrderTotals(validated_line_items, tax_rate, shipping_method)
 
     // Warn loudly if client-computed totals diverged by more than 1¢.
     const client_total = Number(total)
@@ -66,6 +69,8 @@ export async function POST(request) {
       subtotal: server_subtotal,
       tax_amount: server_tax_amount,
       tax_rate: trusted_tax_rate,
+      shipping_method: trusted_shipping_method,
+      shipping_amount: server_shipping_amount,
     }
 
     // Insert order into database
@@ -110,6 +115,8 @@ export async function POST(request) {
       subtotal: server_subtotal,
       tax_amount: server_tax_amount,
       tax_rate: trusted_tax_rate,
+      shipping_method: trusted_shipping_method,
+      shipping_amount: server_shipping_amount,
       total: server_total,
     }
 

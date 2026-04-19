@@ -98,9 +98,37 @@ export default function AdminOrderDetailPage() {
                 <span className="font-medium">${(item.price * item.quantity).toFixed(2)}</span>
               </div>
             ))}
-            <div className="border-t pt-2 flex justify-between font-bold">
-              <span>Total</span><span>${order.total.toFixed(2)}</span>
-            </div>
+            {(() => {
+              const sa = order.shipping_address || {}
+              const sub = sa.subtotal
+              const tax = sa.tax_amount
+              const shipAmt = Number(sa.shipping_amount ?? 0)
+              const shipMethod = sa.shipping_method
+              const shipLabel = shipMethod === 'local_delivery' ? 'Local Delivery' : 'FedEx 2-Day'
+              return (
+                <div className="border-t pt-2 space-y-1">
+                  {sub != null && (
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Subtotal</span><span>${Number(sub).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {tax != null && Number(tax) > 0 && (
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Tax</span><span>${Number(tax).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {shipMethod && (
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Shipping ({shipLabel})</span>
+                      <span>{shipAmt === 0 ? 'FREE' : `$${shipAmt.toFixed(2)}`}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold pt-1 border-t">
+                    <span>Total</span><span>${order.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
 
