@@ -3,7 +3,7 @@ import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail } from '../../../lib/email'
 import { syncToQuickBooks } from '../../../lib/quickbooks'
 import { requireAdmin } from '../../../lib/adminAuth'
-import { getProductBySlug } from '../../../lib/products'
+import { validateLineItems, computeOrderTotals } from '../../../lib/orderValidation'
 import { verifyLabCookie } from '../../../lib/labAuth'
 
 export async function POST(request) {
@@ -28,45 +28,23 @@ export async function POST(request) {
     }
 
     // ── Server-side line-item validation ────────────────────────────────────
-    // Never trust client-supplied prices or slugs.  Each line_item must:
-    //   - reference a known product (slug lookup);
-    //   - if marked hidden, be accompanied by a valid Lab session cookie;
-    //   - carry the server-side price;
-    //   - carry qbo_name so the QBO invoice maps to the right inventory item.
+    // All validation logic lives in lib/orderValidation.js (pure + unit-tested).
+    // In short: slug must match a known product; hidden products need lab
+    // access; prices + qbo_name are substituted from the catalog.
     const hasLabAccess = verifyLabCookie()
-    const validated_line_items = []
-    for (const raw of line_items) {
-      const slug = typeof raw?.slug === 'string' ? raw.slug.trim() : ''
-      if (!slug) {
-        return NextResponse.json({ error: 'Missing product slug' }, { status: 400 })
-      }
-      const product = getProductBySlug(slug)
-      if (!product) {
-        return NextResponse.json({ error: `Unknown product: ${slug}` }, { status: 400 })
-      }
-      if (product.hidden && !hasLabAccess) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 401 })
-      }
-      const qty = Math.max(1, Math.min(99, parseInt(raw.quantity, 10) || 1))
-      validated_line_items.push({
-        id: product.id,
-        slug: product.slug,
-        name: product.name,
-        qbo_name: product.qbo_name || product.name,
-        price: product.price,
-        quantity: qty,
-        image: product.image || null,
-      })
+    const v = validateLineItems(line_items, { hasLabAccess })
+    if (!v.ok) {
+      return NextResponse.json({ error: v.error }, { status: v.status })
     }
+    const validated_line_items = v.validated
 
-    // Server-side totals.  We trust the client's tax_rate (location-dependent)
-    // but recompute subtotal + tax_amount + total from validated prices.
-    const server_subtotal = Number(
-      validated_line_items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2)
-    )
-    const trusted_tax_rate = Number.isFinite(Number(tax_rate)) ? Number(tax_rate) : 0
-    const server_tax_amount = Number((server_subtotal * trusted_tax_rate).toFixed(2))
-    const server_total = Number((server_subtotal + server_tax_amount).toFixed(2))
+    // Server-trusted totals — subtotal from catalog prices, tax_rate from client.
+    const {
+      subtotal: server_subtotal,
+      tax_rate: trusted_tax_rate,
+      tax_amount: server_tax_amount,
+      total: server_total,
+    } = computeOrderTotals(validated_line_items, tax_rate)
 
     // Warn loudly if client-computed totals diverged by more than 1¢.
     const client_total = Number(total)
