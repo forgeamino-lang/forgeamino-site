@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useReducer, useEffect } from 'react'
+import { getProductBySlug } from '../lib/products'
 
 const CartContext = createContext(null)
 
@@ -26,6 +27,14 @@ function cartReducer(state, action) {
       )
     case 'CLEAR_CART':
       return []
+    case 'PURGE_HIDDEN':
+      // Remove any cart items whose product is marked hidden (Lab-only).
+      // Called when the user locks the Lab so hidden items don't sit in
+      // the cart and silently 401 at checkout.
+      return state.filter(i => {
+        const p = getProductBySlug(i.slug)
+        return !(p && p.hidden)
+      })
     case 'HYDRATE':
       return action.items
     default:
@@ -55,12 +64,13 @@ export function CartProvider({ children }) {
   const removeItem = (slug) => dispatch({ type: 'REMOVE_ITEM', slug })
   const updateQuantity = (slug, quantity) => dispatch({ type: 'UPDATE_QUANTITY', slug, quantity })
   const clearCart = () => dispatch({ type: 'CLEAR_CART' })
+  const purgeHiddenItems = () => dispatch({ type: 'PURGE_HIDDEN' })
 
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
 
   return (
-    <CartContext.Provider value={{ cart, addItem, removeItem, updateQuantity, clearCart, cartCount, cartTotal }}>
+    <CartContext.Provider value={{ cart, addItem, removeItem, updateQuantity, clearCart, purgeHiddenItems, cartCount, cartTotal }}>
       {children}
     </CartContext.Provider>
   )
