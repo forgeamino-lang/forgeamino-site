@@ -3,6 +3,7 @@ import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail } from '../../../lib/email'
 import { syncToQuickBooks } from '../../../lib/quickbooks'
 import { requireAdmin } from '../../../lib/adminAuth'
+import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals } from '../../../lib/orderValidation'
 import { verifyLabCookie } from '../../../lib/labAuth'
 
@@ -87,6 +88,14 @@ export async function POST(request) {
 
     if (error) {
       console.error('Supabase error:', error)
+      Sentry.captureException(new Error('Supabase order insert failed'), {
+        extra: {
+          supabase_error: error,
+          customer_email,
+          order_number,
+        },
+        tags: { area: 'orders', failure: 'supabase-insert' },
+      })
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
     }
 
@@ -107,12 +116,21 @@ export async function POST(request) {
     // Send emails + sync to QuickBooks (non-blocking — don't fail the order if these fail)
     await Promise.all([
       sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),
-      syncToQuickBooks(order).catch(e => console.error('QuickBooks sync failed:', { order_number, customer_name, customer_email, error: e?.message, stack: e?.stack, raw: String(e) }))
+      syncToQuickBooks(order).catch(e => {
+        console.error('QuickBooks sync failed:', { order_number, customer_name, customer_email, error: e?.message, stack: e?.stack, raw: String(e) })
+        Sentry.captureException(e, {
+          extra: { order_number, customer_email },
+          tags: { area: 'orders', failure: 'quickbooks-sync' },
+        })
+      })
     ])
 
     return NextResponse.json({ orderId: data.id, orderNumber: order_number })
   } catch (err) {
     console.error('Order creation error:', err)
+    Sentry.captureException(err, {
+      tags: { area: 'orders', failure: 'unhandled' },
+    })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

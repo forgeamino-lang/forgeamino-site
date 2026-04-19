@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Required in Next 14 for instrumentation.js to load (loads Sentry).
+    // Stabilized in Next 15 — remove this flag when we upgrade.
+    instrumentationHook: true,
+  },
   images: {
     remotePatterns: [
       {

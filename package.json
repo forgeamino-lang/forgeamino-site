@@ -17,7 +17,8 @@
     "resend": "^3.5.0",
     "react-hot-toast": "^2.4.1",
     "@clerk/nextjs": "^5.7.2",
-    "lucide-react": "^0.383.0"
+    "lucide-react": "^0.383.0",
+    "@sentry/nextjs": "^8.48.0"
   },
   "devDependencies": {
     "autoprefixer": "^10.0.1",
