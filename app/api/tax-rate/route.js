@@ -59,14 +59,25 @@ export async function GET(request) {
       return stateFallback()
     }
 
-    // Pick the best result: prefer one matching the supplied city name,
-    // otherwise use the first result (highest population / primary rate)
-    let result = data.results[0]
-    if (city && data.results.length > 1) {
-      const cityMatch = data.results.find(
-        r => r.geoCity?.toUpperCase() === city
-      )
-      if (cityMatch) result = cityMatch
+    // Pick the best result. Many ZIPs span multiple jurisdictions — e.g.
+    // 73072 (Norman OK) returns two results, both labeled geoCity="NORMAN",
+    // one in McClain County with no city tax (5% total) and one in Cleveland
+    // County with Norman's 4.125% city tax (8.75% total). The taxing
+    // jurisdiction that applies is the one inside city limits, which is always
+    // the result with the highest taxSales among same-city matches.
+    //
+    // Strategy: highest-rate match, preferring city-name matches when the
+    // client supplied a city. Falls back to highest-rate across all results
+    // if no city match (or no city supplied).
+    const byRate = (a, b) => (Number(b.taxSales) || 0) - (Number(a.taxSales) || 0)
+    let result
+    const cityMatches = city
+      ? data.results.filter(r => r.geoCity?.toUpperCase() === city)
+      : []
+    if (cityMatches.length > 0) {
+      result = [...cityMatches].sort(byRate)[0]
+    } else {
+      result = [...data.results].sort(byRate)[0]
     }
 
     // Normalise into the same shape the checkout & email code expects
@@ -89,9 +100,9 @@ export async function GET(request) {
         resultCount: data.results?.length ?? 0,
         results: data.results,
         picked_index: data.results?.indexOf(result) ?? -1,
-        picker_used: (city && data.results.length > 1
-          && data.results.find(r => r.geoCity?.toUpperCase() === city)
-        ) ? 'city_match' : 'first_result',
+        picker_used: (city && data.results.some(r => r.geoCity?.toUpperCase() === city))
+          ? 'highest-rate among city matches'
+          : 'highest-rate across all results',
       }
     }
     return NextResponse.json(normalized)
