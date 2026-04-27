@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
-import { sendOrderConfirmationEmail } from '../../../lib/email'
+import { sendOrderConfirmationEmail, sendOrderReceivedAlert } from '../../../lib/email'
 import { syncToQuickBooks } from '../../../lib/quickbooks'
 import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
@@ -120,9 +120,21 @@ export async function POST(request) {
       total: server_total,
     }
 
-    // Send emails + sync to QuickBooks (non-blocking — don't fail the order if these fail)
+// Fan out three independent side effects:
+    //  1. Customer order confirmation (Resend)
+    //  2. Admin "order received" alert — fires regardless of QBO health, so we
+    //     never go blind on orders again when token rotation breaks
+    //  3. QuickBooks invoice sync (which itself sends the PDF email on success)
+    // None of these can fail the order — they're all .catch'd to Sentry/console.
     await Promise.all([
       sendOrderConfirmationEmail(order).catch(e => console.error('Customer email failed:', e)),
+      sendOrderReceivedAlert(order).catch(e => {
+        console.error('Admin order-received alert failed:', e)
+        Sentry.captureException(e, {
+          extra: { order_number, customer_email },
+          tags: { area: 'orders', failure: 'admin-alert' },
+        })
+      }),
       syncToQuickBooks(order).catch(e => {
         console.error('QuickBooks sync failed:', { order_number, customer_name, customer_email, error: e?.message, stack: e?.stack, raw: String(e) })
         Sentry.captureException(e, {
