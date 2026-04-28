@@ -1,4 +1,5 @@
 import { exchangeCodeForTokens } from '../../../../../lib/quickbooks'
+import { createServerClient } from '../../../../../lib/supabase'
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
@@ -18,8 +19,22 @@ export async function GET(request) {
     })
   }
 
-  try {
+try {
     const tokens = await exchangeCodeForTokens(code)
+
+    // Persist the new refresh token to Supabase so the running site
+    // immediately picks it up on the next QBO call. (No redeploy needed.)
+    try {
+      const supabase = createServerClient()
+      await supabase
+        .from('secrets')
+        .upsert(
+          { key: 'qbo_refresh_token', value: tokens.refresh_token, updated_at: new Date().toISOString() },
+          { onConflict: 'key' }
+        )
+    } catch (persistErr) {
+      console.error('OAuth callback: Supabase write failed:', persistErr.message)
+    }
 
     return new Response(
       `<!DOCTYPE html>
