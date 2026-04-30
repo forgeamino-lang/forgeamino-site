@@ -68,6 +68,35 @@ export default function LabProductCard({ product }) {
           <p className="text-[#0d1b2a] font-medium text-sm mb-4">
             {formatPrice(product.price)}
           </p>
+
+          {/* Certificate of Analysis (lab products have no detail page,
+              so we surface batch COAs directly on the card). */}
+          {product.coas && product.coas.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-[#0d1b2a] tracking-widest uppercase mb-1.5">
+                Certificate of Analysis
+              </p>
+              <ul className="space-y-1">
+                {product.coas.map((coa, i) => (
+                  <li key={i}>
+                    <a
+                      href={coa.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-[#2196f3] hover:text-[#1565c0] hover:underline transition-colors font-medium"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      {coa.text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Add to cart */}
