@@ -250,22 +250,44 @@ export default function ProductPage({ params }) {
               Certificate of Analysis
             </h2>
             <ul className="space-y-2">
-              {product.coas.map((coa, i) => (
-                <li key={i}>
-                  <a
-                    href={coa.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-[#2196f3] hover:text-[#1565c0] hover:underline transition-colors font-medium"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    {coa.text}
-                  </a>
-                </li>
-              ))}
+              {product.coas.map((coa, i) => {
+                // Shared icon used by both link + placeholder forms.
+                const icon = (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                )
+                if (coa.comingSoon) {
+                  return (
+                    <li key={i}>
+                      <span
+                        aria-disabled="true"
+                        className="inline-flex items-center gap-2 text-sm text-gray-500 font-medium cursor-default"
+                      >
+                        {icon}
+                        {coa.text}
+                        <span className="ml-1 text-[10px] font-bold uppercase tracking-widest bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
+                          Coming Soon
+                        </span>
+                      </span>
+                    </li>
+                  )
+                }
+                return (
+                  <li key={i}>
+                    <a
+                      href={coa.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-sm text-[#2196f3] hover:text-[#1565c0] hover:underline transition-colors font-medium"
+                    >
+                      {icon}
+                      {coa.text}
+                    </a>
+                  </li>
+                )
+              })}
             </ul>
           </section>
         )}
