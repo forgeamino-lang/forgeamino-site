@@ -77,44 +77,23 @@ export default function LabProductCard({ product }) {
                 Certificate of Analysis
               </p>
               <ul className="space-y-1">
-                {product.coas.map((coa, i) => {
-                  const icon = (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                  )
-                  if (coa.comingSoon) {
-                    return (
-                      <li key={i}>
-                        <span
-                          aria-disabled="true"
-                          className="inline-flex items-center gap-1.5 text-[11px] text-gray-500 font-medium cursor-default"
-                        >
-                          {icon}
-                          {coa.text}
-                          <span className="ml-0.5 text-[8px] font-bold uppercase tracking-widest bg-gray-200 text-gray-700 px-1 py-0.5 rounded">
-                            Coming Soon
-                          </span>
-                        </span>
-                      </li>
-                    )
-                  }
-                  return (
-                    <li key={i}>
-                      <a
-                        href={coa.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 text-[11px] text-[#2196f3] hover:text-[#1565c0] hover:underline transition-colors font-medium"
-                      >
-                        {icon}
-                        {coa.text}
-                      </a>
-                    </li>
-                  )
-                })}
+                {product.coas.map((coa, i) => (
+                  <li key={i}>
+                    <a
+                      href={coa.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-[#2196f3] hover:text-[#1565c0] hover:underline transition-colors font-medium"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      {coa.text}
+                    </a>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
