@@ -22,6 +22,7 @@ export async function POST(request) {
       tax_amount,
       tax_rate,
       total,
+      affiliate_code,
     } = body
 
     // Basic validation
@@ -73,6 +74,32 @@ export async function POST(request) {
       shipping_amount: server_shipping_amount,
     }
 
+    // ── Resolve affiliate code, if any ──────────────────────────────────────
+    // Customer-typed code is matched case-insensitively against the affiliates
+    // table. We store the literal typed string regardless (forensic record),
+    // and only fill affiliate_id when the code resolved to an active row.
+    // A typo / unknown / inactive code never blocks the order.
+    let affiliate_code_clean = null
+    let affiliate_id = null
+    if (typeof affiliate_code === 'string') {
+      const trimmed = affiliate_code.trim()
+      if (trimmed.length > 0) {
+        affiliate_code_clean = trimmed
+        try {
+          const { data: aff } = await supabase
+            .from('affiliates')
+            .select('id, code')
+            .ilike('code', trimmed)
+            .eq('active', true)
+            .maybeSingle()
+          if (aff) affiliate_id = aff.id
+        } catch (lookupErr) {
+          // Lookup failure is logged but never blocks the order
+          console.error('Affiliate lookup failed:', lookupErr)
+        }
+      }
+    }
+
     // Insert order into database
     const { data, error } = await supabase
       .from('orders')
@@ -87,6 +114,8 @@ export async function POST(request) {
         total: server_total,
         payment_status: 'pending',
         fulfillment_status: 'pending',
+        affiliate_code: affiliate_code_clean,
+        affiliate_id,
       })
       .select('id')
       .single()
@@ -118,6 +147,7 @@ export async function POST(request) {
       shipping_method: trusted_shipping_method,
       shipping_amount: server_shipping_amount,
       total: server_total,
+      affiliate_code: affiliate_code_clean,
     }
 
 // Fan out three independent side effects:

@@ -51,6 +51,7 @@ export default function CheckoutPage() {
     zip: '',
     paymentMethod: 'venmo',
     shippingMethod: 'fedex_2day',
+    affiliateCode: '',
   })
 
   // Live tax rate from TaxJar (includes state + county + city)
@@ -115,6 +116,7 @@ export default function CheckoutPage() {
           },
           payment_method: form.paymentMethod,
           shipping_method: form.shippingMethod,
+          affiliate_code: form.affiliateCode || null,
           line_items: cart.map(i => ({
             id: i.id,
             slug: i.slug,
@@ -322,6 +324,24 @@ export default function CheckoutPage() {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Affiliate code (optional) — pure attribution, no customer discount */}
+            <div className="bg-white rounded-lg p-6 shadow-sm">
+              <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Affiliate Code</h2>
+              <p className="text-xs text-gray-500 mb-3">
+                If a Forge Amino sales associate referred you, enter their code here so they get credit for your order. Leave blank if none.
+              </p>
+              <input
+                name="affiliateCode"
+                type="text"
+                autoComplete="off"
+                spellCheck="false"
+                value={form.affiliateCode}
+                onChange={handleChange}
+                placeholder="e.g. MONTIE"
+                className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
+              />
             </div>
 
             {error && (
