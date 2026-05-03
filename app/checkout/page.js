@@ -326,6 +326,15 @@ export default function CheckoutPage() {
               )}
             </div>
 
+            {error && (
+              <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Affiliate code + Order summary */}
+          <div className="space-y-6">
             {/* Affiliate code (optional) — pure attribution, no customer discount */}
             <div className="bg-white rounded-lg p-6 shadow-sm">
               <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Affiliate Code</h2>
@@ -344,15 +353,6 @@ export default function CheckoutPage() {
               />
             </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-300 rounded-lg p-4">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT: Order summary */}
-          <div>
             <div className="bg-white rounded-lg p-6 shadow-sm sticky top-24">
               <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Order Summary</h2>
 
