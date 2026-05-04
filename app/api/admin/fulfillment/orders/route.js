@@ -31,5 +31,17 @@ export async function GET(request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ orders: data, fetched_at: new Date().toISOString() })
+  // Aggressive no-cache so the Vercel edge CDN never serves a stale snapshot
+  // back to the client. Without this, peers' edits could appear to "revert"
+  // because polling reads a cached pre-edit body.
+  return NextResponse.json(
+    { orders: data, fetched_at: new Date().toISOString() },
+    { headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'CDN-Cache-Control': 'no-store',
+      'Vercel-CDN-Cache-Control': 'no-store',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    }}
+  )
 }

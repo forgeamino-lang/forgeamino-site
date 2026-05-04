@@ -69,5 +69,12 @@ export async function PATCH(request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, order: data })
+  return NextResponse.json(
+    { ok: true, order: data },
+    { headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'CDN-Cache-Control': 'no-store',
+      'Vercel-CDN-Cache-Control': 'no-store',
+    }}
+  )
 }

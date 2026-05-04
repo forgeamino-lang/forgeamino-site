@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v3 · 2026-05-04 17:40'
+const PAGE_VERSION = 'v4 · 2026-05-04 17:55 (cache-bust)'
 const STAFF = ['Angela', 'Mark', 'Sean']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
@@ -66,7 +66,7 @@ export default function FulfillmentPage() {
       if (Date.now() - lastSaveAtRef.current < SAVE_COOLDOWN_MS) return
     }
     try {
-      const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(key)}`, {
+      const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(key)}&_=${Date.now()}`, {
         cache: 'no-store',
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
