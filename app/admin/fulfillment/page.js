@@ -5,7 +5,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 const STAFF = ['Angela', 'Mark', 'Sean']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
-const POLL_INTERVAL_MS   = 10000   // 10s, was 5s — lower race surface against PATCH writes
+const POLL_INTERVAL_MS   = 30000   // 30s — generous, polls only catch peer edits
+const SAVE_COOLDOWN_MS   = 5000    // skip polling for 5s after any local save
 
 function isActive(o)   { return o.fulfillment_status !== 'delivered' }
 function isDone(o)     { return o.payment_status === 'paid' &&
@@ -23,38 +24,46 @@ function deliverOrShip(o) {
 }
 
 export default function FulfillmentPage() {
-  const [adminKey, setAdminKey]  = useState('')
-  const [authed, setAuthed]      = useState(false)
-  const [password, setPassword]  = useState('')
+  const [adminKey, setAdminKey]   = useState('')
+  const [authed, setAuthed]       = useState(false)
+  const [password, setPassword]   = useState('')
   const [loginError, setLoginError] = useState('')
 
-  const [orders, setOrders]   = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
-  const [filter, setFilter]   = useState('active')
+  const [orders, setOrders]       = useState([])
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+  const [filter, setFilter]       = useState('active')
   const [savingIds, setSavingIds] = useState(new Set())
+  const [savedFlash, setSavedFlash] = useState(0)
 
-  // Mirror of savingIds + adminKey for callbacks that fire outside the React
-  // render cycle (the polling interval). Avoids stale-closure bugs without
-  // having to bake them into the useCallback deps (which would restart polling
-  // on every save and itself cause races).
-  const savingIdsRef = useRef(new Set())
-  const adminKeyRef  = useRef('')
-  useEffect(() => { savingIdsRef.current = savingIds }, [savingIds])
-  useEffect(() => { adminKeyRef.current  = adminKey  }, [adminKey])
+  // ── Refs (synchronously updated, never stale) ────────────────────────────
+  // Anything the polling callback or async PATCH path needs to read MUST go
+  // through a ref — useState values would be stale by the time the callback
+  // fires several seconds later.
+  const adminKeyRef    = useRef('')
+  const savingIdsRef   = useRef(new Set())
+  const lastSaveAtRef  = useRef(0)
+  const pollRef        = useRef(null)
 
-  const pollRef = useRef(null)
+  useEffect(() => { adminKeyRef.current = adminKey }, [adminKey])
+  // savingIds ref is updated SYNCHRONOUSLY inside patchOrder (not via effect),
+  // so the polling skip check is immune to the React render cycle.
 
-  // Polling fetch.
-  // - Skips entirely when any save is in flight (no chance of clobbering an
-  //   in-flight optimistic update with stale server data).
-  // - Even on a clean merge, any row currently being saved keeps its local
-  //   version (defense in depth, in case savingIds flipped between the GET
-  //   firing and the response landing).
+  // ── Polling fetch ────────────────────────────────────────────────────────
+  // Skips entirely under three conditions to eliminate every race vector:
+  //   1) any save is in flight (savingIdsRef non-empty)
+  //   2) we just saved within SAVE_COOLDOWN_MS (covers the brief window after
+  //      a save where the GET response could carry pre-PATCH data)
+  //   3) no admin key
+  // Even when polling DOES proceed, rows whose ids are in savingIds keep
+  // their local version (defense in depth).
   const fetchOrders = useCallback(async ({ force = false } = {}) => {
-    if (!force && savingIdsRef.current.size > 0) return  // skip while saving
     const key = adminKeyRef.current
     if (!key) return
+    if (!force) {
+      if (savingIdsRef.current.size > 0) return
+      if (Date.now() - lastSaveAtRef.current < SAVE_COOLDOWN_MS) return
+    }
     try {
       const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(key)}`, {
         cache: 'no-store',
@@ -75,7 +84,7 @@ export default function FulfillmentPage() {
     }
   }, [])
 
-  // Auto-login from sessionStorage (matches /admin convention)
+  // ── Auto-login from sessionStorage ───────────────────────────────────────
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? sessionStorage.getItem('forge-admin-key') : ''
     if (saved) {
@@ -84,7 +93,7 @@ export default function FulfillmentPage() {
     }
   }, [])
 
-  // Initial load + 10s polling
+  // ── Initial load + polling ───────────────────────────────────────────────
   useEffect(() => {
     if (!authed || !adminKey) return
     setLoading(true)
@@ -104,27 +113,27 @@ export default function FulfillmentPage() {
         setLoading(false); return
       }
       sessionStorage.setItem('forge-admin-key', password)
-      setAdminKey(password)
-      setAuthed(true)
-    } catch {
-      setLoginError('Failed to connect')
-    }
+      setAdminKey(password); setAuthed(true)
+    } catch { setLoginError('Failed to connect') }
     setLoading(false)
   }
-
   function handleLogout() {
     sessionStorage.removeItem('forge-admin-key')
     setAdminKey(''); setAuthed(false); setOrders([])
   }
 
-  // Update flow: optimistic local set → PATCH → reconcile with server response
-  // (or revert + show error). savingIds keeps the polling loop hands-off until
-  // the round trip completes, so the optimistic value can't get clobbered.
+  // ── Update flow: optimistic → PATCH → reconcile ─────────────────────────
   async function patchOrder(orderId, patch) {
+    // Update ref SYNCHRONOUSLY (before any state set / await) so the next
+    // polling check, even if it fires the same tick, sees an in-flight save.
+    const nextSet = new Set(savingIdsRef.current); nextSet.add(orderId)
+    savingIdsRef.current = nextSet
+    setSavingIds(nextSet)
+
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...patch } : o))
-    setSavingIds(prev => { const n = new Set(prev); n.add(orderId); return n })
+
     try {
-      const res = await fetch(`/api/admin/fulfillment/update?key=${encodeURIComponent(adminKey)}`, {
+      const res = await fetch(`/api/admin/fulfillment/update?key=${encodeURIComponent(adminKeyRef.current)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: orderId, ...patch }),
@@ -134,18 +143,23 @@ export default function FulfillmentPage() {
         throw new Error(j.error || `HTTP ${res.status}`)
       }
       const j = await res.json()
+      // Stamp the cooldown BEFORE removing from savingIds, so even if polling
+      // fires immediately on the savingIds-cleared render it still sees the
+      // cooldown window and skips.
+      lastSaveAtRef.current = Date.now()
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...j.order } : o))
       setError('')
+      setSavedFlash(Date.now())  // brief visual feedback
     } catch (e) {
       setError(`Save failed: ${e.message} — try again`)
-      // Force a refresh so we know the true server state, but only AFTER we
-      // remove from savingIds (handled in finally below)
     } finally {
-      setSavingIds(prev => { const n = new Set(prev); n.delete(orderId); return n })
+      const after = new Set(savingIdsRef.current); after.delete(orderId)
+      savingIdsRef.current = after
+      setSavingIds(after)
     }
   }
 
-  // ── Login screen ──────────────────────────────────────────────────────────
+  // ── Login screen ─────────────────────────────────────────────────────────
   if (!authed) {
     return (
       <div className="min-h-screen bg-[#0d1b2a] flex items-center justify-center px-4">
@@ -169,7 +183,7 @@ export default function FulfillmentPage() {
     )
   }
 
-  // Counts + filtering
+  // Counts + filter
   const counts = orders.reduce((acc, o) => {
     if (isDone(o)) acc.done++
     else if (o.claimed_by) acc.inProgress++
@@ -177,7 +191,6 @@ export default function FulfillmentPage() {
     if (isActive(o)) acc.active++
     return acc
   }, { active: 0, attention: 0, inProgress: 0, done: 0 })
-
   const filtered = orders.filter(o => {
     if (filter === 'active')      return isActive(o)
     if (filter === 'attention')   return !isDone(o) && !o.claimed_by
@@ -186,16 +199,25 @@ export default function FulfillmentPage() {
     return true
   })
 
+  const showSavedToast = savedFlash > 0 && Date.now() - savedFlash < 1500
+
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-[#0d1b2a] tracking-wide">Fulfillment</h1>
           <p className="text-xs text-gray-400 mt-1">
-            {orders.length} orders (last 60 days) · auto-refreshes every 10s
+            {orders.length} orders (last 60 days) · syncs from peers every 30s
           </p>
         </div>
-        <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-gray-600">Sign out</button>
+        <div className="flex items-center gap-3">
+          {showSavedToast && (
+            <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded">Saved ✓</span>
+          )}
+          <button onClick={() => fetchOrders({ force: true })}
+            className="text-xs text-gray-500 hover:text-[#0d1b2a] underline">Refresh</button>
+          <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-gray-600">Sign out</button>
+        </div>
       </div>
 
       {error && (
@@ -226,7 +248,6 @@ export default function FulfillmentPage() {
         <table className="w-full text-sm min-w-[1100px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 text-left">
-              {/* Claimed By is the first column now — fastest action a user takes when they land on the page */}
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Claimed by</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Date</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Order</th>
