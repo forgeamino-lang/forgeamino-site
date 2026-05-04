@@ -5,60 +5,77 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 const STAFF = ['Angela', 'Mark', 'Sean']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
+const POLL_INTERVAL_MS   = 10000   // 10s, was 5s — lower race surface against PATCH writes
 
-// Active = anything not yet delivered (default view) + last 60 days for context
-function isActive(order) {
-  return order.fulfillment_status !== 'delivered'
-}
-
-// Row-tint logic: pink = needs attention, yellow = in progress, green = done
-function rowTone(order) {
-  const done = order.payment_status === 'paid' &&
-               (order.fulfillment_status === 'shipped' || order.fulfillment_status === 'delivered')
-  if (done) return 'bg-green-50'
-  if (order.claimed_by) return 'bg-yellow-50'
-  return 'bg-pink-50'
-}
-
+function isActive(o)   { return o.fulfillment_status !== 'delivered' }
+function isDone(o)     { return o.payment_status === 'paid' &&
+                                (o.fulfillment_status === 'shipped' || o.fulfillment_status === 'delivered') }
+function rowTone(o)    { if (isDone(o)) return 'bg-green-50'
+                         if (o.claimed_by) return 'bg-yellow-50'
+                         return 'bg-pink-50' }
 function summarizeItems(line_items) {
   if (!Array.isArray(line_items)) return ''
   return line_items.map(li => `${li.quantity}× ${li.name}`).join(', ')
 }
-
-function deliverOrShip(order) {
-  const m = order.shipping_address?.shipping_method
+function deliverOrShip(o) {
+  const m = o.shipping_address?.shipping_method
   return m === 'local_delivery' || m === 'local' ? 'Deliver' : 'Ship'
 }
 
 export default function FulfillmentPage() {
-  const [adminKey, setAdminKey] = useState('')
-  const [authed, setAuthed]     = useState(false)
-  const [password, setPassword] = useState('')
+  const [adminKey, setAdminKey]  = useState('')
+  const [authed, setAuthed]      = useState(false)
+  const [password, setPassword]  = useState('')
   const [loginError, setLoginError] = useState('')
 
-  const [orders, setOrders] = useState([])
+  const [orders, setOrders]   = useState([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [filter, setFilter] = useState('active')   // 'active' | 'attention' | 'in-progress' | 'done' | 'all'
+  const [error, setError]     = useState('')
+  const [filter, setFilter]   = useState('active')
   const [savingIds, setSavingIds] = useState(new Set())
+
+  // Mirror of savingIds + adminKey for callbacks that fire outside the React
+  // render cycle (the polling interval). Avoids stale-closure bugs without
+  // having to bake them into the useCallback deps (which would restart polling
+  // on every save and itself cause races).
+  const savingIdsRef = useRef(new Set())
+  const adminKeyRef  = useRef('')
+  useEffect(() => { savingIdsRef.current = savingIds }, [savingIds])
+  useEffect(() => { adminKeyRef.current  = adminKey  }, [adminKey])
 
   const pollRef = useRef(null)
 
-  const fetchOrders = useCallback(async (key) => {
+  // Polling fetch.
+  // - Skips entirely when any save is in flight (no chance of clobbering an
+  //   in-flight optimistic update with stale server data).
+  // - Even on a clean merge, any row currently being saved keeps its local
+  //   version (defense in depth, in case savingIds flipped between the GET
+  //   firing and the response landing).
+  const fetchOrders = useCallback(async ({ force = false } = {}) => {
+    if (!force && savingIdsRef.current.size > 0) return  // skip while saving
+    const key = adminKeyRef.current
+    if (!key) return
     try {
       const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(key)}`, {
         cache: 'no-store',
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      setOrders(data.orders || [])
+      const fetched = data.orders || []
+      setOrders(prev => {
+        if (savingIdsRef.current.size === 0) return fetched
+        const prevById = new Map(prev.map(o => [o.id, o]))
+        return fetched.map(o =>
+          savingIdsRef.current.has(o.id) ? (prevById.get(o.id) || o) : o
+        )
+      })
       setError('')
     } catch (e) {
       setError(`Refresh failed: ${e.message}`)
     }
   }, [])
 
-  // Auto-login from sessionStorage (same key as the existing /admin page)
+  // Auto-login from sessionStorage (matches /admin convention)
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? sessionStorage.getItem('forge-admin-key') : ''
     if (saved) {
@@ -67,12 +84,12 @@ export default function FulfillmentPage() {
     }
   }, [])
 
-  // Initial load + polling every 5 seconds for near-real-time multi-user sync
+  // Initial load + 10s polling
   useEffect(() => {
     if (!authed || !adminKey) return
     setLoading(true)
-    fetchOrders(adminKey).finally(() => setLoading(false))
-    pollRef.current = setInterval(() => fetchOrders(adminKey), 5000)
+    fetchOrders({ force: true }).finally(() => setLoading(false))
+    pollRef.current = setInterval(() => fetchOrders(), POLL_INTERVAL_MS)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [authed, adminKey, fetchOrders])
 
@@ -84,8 +101,7 @@ export default function FulfillmentPage() {
       const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(password)}`)
       if (!res.ok) {
         setLoginError(res.status === 401 ? 'Invalid password' : `Error ${res.status}`)
-        setLoading(false)
-        return
+        setLoading(false); return
       }
       sessionStorage.setItem('forge-admin-key', password)
       setAdminKey(password)
@@ -98,16 +114,15 @@ export default function FulfillmentPage() {
 
   function handleLogout() {
     sessionStorage.removeItem('forge-admin-key')
-    setAdminKey('')
-    setAuthed(false)
-    setOrders([])
+    setAdminKey(''); setAuthed(false); setOrders([])
   }
 
-  // Optimistic update + persist
+  // Update flow: optimistic local set → PATCH → reconcile with server response
+  // (or revert + show error). savingIds keeps the polling loop hands-off until
+  // the round trip completes, so the optimistic value can't get clobbered.
   async function patchOrder(orderId, patch) {
-    // Optimistic local state
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...patch } : o))
-    setSavingIds(prev => new Set(prev).add(orderId))
+    setSavingIds(prev => { const n = new Set(prev); n.add(orderId); return n })
     try {
       const res = await fetch(`/api/admin/fulfillment/update?key=${encodeURIComponent(adminKey)}`, {
         method: 'PATCH',
@@ -119,12 +134,12 @@ export default function FulfillmentPage() {
         throw new Error(j.error || `HTTP ${res.status}`)
       }
       const j = await res.json()
-      // Reconcile with server response (timestamps, etc.)
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...j.order } : o))
+      setError('')
     } catch (e) {
-      setError(`Save failed: ${e.message}`)
-      // Re-fetch to recover from any client/server divergence
-      fetchOrders(adminKey)
+      setError(`Save failed: ${e.message} — try again`)
+      // Force a refresh so we know the true server state, but only AFTER we
+      // remove from savingIds (handled in finally below)
     } finally {
       setSavingIds(prev => { const n = new Set(prev); n.delete(orderId); return n })
     }
@@ -154,10 +169,9 @@ export default function FulfillmentPage() {
     )
   }
 
-  // ── Filters + counts ──────────────────────────────────────────────────────
+  // Counts + filtering
   const counts = orders.reduce((acc, o) => {
-    const done = o.payment_status === 'paid' && (o.fulfillment_status === 'shipped' || o.fulfillment_status === 'delivered')
-    if (done) acc.done++
+    if (isDone(o)) acc.done++
     else if (o.claimed_by) acc.inProgress++
     else acc.attention++
     if (isActive(o)) acc.active++
@@ -165,32 +179,33 @@ export default function FulfillmentPage() {
   }, { active: 0, attention: 0, inProgress: 0, done: 0 })
 
   const filtered = orders.filter(o => {
-    const done = o.payment_status === 'paid' && (o.fulfillment_status === 'shipped' || o.fulfillment_status === 'delivered')
     if (filter === 'active')      return isActive(o)
-    if (filter === 'attention')   return !done && !o.claimed_by
-    if (filter === 'in-progress') return !done && !!o.claimed_by
-    if (filter === 'done')        return done
+    if (filter === 'attention')   return !isDone(o) && !o.claimed_by
+    if (filter === 'in-progress') return !isDone(o) && !!o.claimed_by
+    if (filter === 'done')        return isDone(o)
     return true
   })
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-[#0d1b2a] tracking-wide">Fulfillment</h1>
           <p className="text-xs text-gray-400 mt-1">
-            {orders.length} orders (last 60 days) · auto-refreshes every 5s
+            {orders.length} orders (last 60 days) · auto-refreshes every 10s
           </p>
         </div>
         <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-gray-600">Sign out</button>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-xs text-red-700">{error}</div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-xs text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => { setError(''); fetchOrders({ force: true }) }}
+            className="ml-3 text-red-700 underline font-bold">Refresh</button>
+        </div>
       )}
 
-      {/* Filter chips with counts */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {[
           ['active',      `Active (${counts.active})`],
@@ -207,11 +222,12 @@ export default function FulfillmentPage() {
         ))}
       </div>
 
-      {/* Orders table */}
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-sm min-w-[1100px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 text-left">
+              {/* Claimed By is the first column now — fastest action a user takes when they land on the page */}
+              <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Claimed by</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Date</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Order</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Customer</th>
@@ -220,7 +236,6 @@ export default function FulfillmentPage() {
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Type</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Aff.</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Paid</th>
-              <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Claimed by</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Tracking #</th>
             </tr>
@@ -233,6 +248,16 @@ export default function FulfillmentPage() {
               const saving = savingIds.has(order.id)
               return (
                 <tr key={order.id} className={`${rowTone(order)} border-b border-gray-100 ${saving ? 'opacity-70' : ''}`}>
+                  <td className="px-3 py-2">
+                    <select
+                      value={order.claimed_by || ''}
+                      onChange={e => patchOrder(order.id, { claimed_by: e.target.value || null })}
+                      className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-[#2196f3] font-bold"
+                    >
+                      <option value="">— unclaimed —</option>
+                      {STAFF.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </td>
                   <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">
                     {new Date(order.created_at).toLocaleDateString()}
                   </td>
@@ -255,16 +280,6 @@ export default function FulfillmentPage() {
                       className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-[#2196f3]"
                     >
                       {PAYMENT_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <select
-                      value={order.claimed_by || ''}
-                      onChange={e => patchOrder(order.id, { claimed_by: e.target.value || null })}
-                      className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-[#2196f3]"
-                    >
-                      <option value="">— unclaimed —</option>
-                      {STAFF.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </td>
                   <td className="px-3 py-2">
@@ -297,7 +312,6 @@ export default function FulfillmentPage() {
         </table>
       </div>
 
-      {/* Mobile note + legend */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-500">
         <div className="bg-pink-50 rounded-lg p-3">
           <strong className="text-[#0d1b2a]">Pink</strong> · Needs someone to claim
