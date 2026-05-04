@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+const PAGE_VERSION = 'v3 · 2026-05-04 17:40'
 const STAFF = ['Angela', 'Mark', 'Sean']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
@@ -207,7 +208,7 @@ export default function FulfillmentPage() {
         <div>
           <h1 className="text-xl font-bold text-[#0d1b2a] tracking-wide">Fulfillment</h1>
           <p className="text-xs text-gray-400 mt-1">
-            {orders.length} orders (last 60 days) · syncs from peers every 30s
+            {orders.length} orders · syncs from peers every 30s · {PAGE_VERSION}
           </p>
         </div>
         <div className="flex items-center gap-3">
