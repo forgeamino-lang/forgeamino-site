@@ -1,0 +1,19 @@
+{
+  "name": "Forge Amino — Fulfillment",
+  "short_name": "FA Fulfillment",
+  "description": "Internal order fulfillment workflow for the Forge Amino team.",
+  "id": "/admin/fulfillment",
+  "start_url": "/admin/fulfillment",
+  "scope": "/admin/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d1b2a",
+  "theme_color": "#0d1b2a",
+  "icons": [
+    { "src": "/icons/icon-192.png",      "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-256.png",      "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-384.png",      "sizes": "384x384", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png",      "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png",  "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -29,6 +29,26 @@ export const metadata = {
       'max-snippet': -1,
     },
   },
+  // PWA — installable from /admin/fulfillment via Add to Home Screen
+  manifest: '/manifest.json',
+  themeColor: '#0d1b2a',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'FA Fulfillment',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',

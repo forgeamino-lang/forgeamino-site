@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v5 · 2026-05-04 18:10 (month filter)'
+const PAGE_VERSION = 'v6 · 2026-05-04 18:25 (PWA install)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -110,6 +110,15 @@ export default function FulfillmentPage() {
       setAdminKey(saved)
       setAuthed(true)
     }
+  }, [])
+
+  // ── Register PWA service worker on mount ─────────────────────────────────
+  // The SW handles offline shell + push notifications (Phase 3). Re-registers
+  // are no-ops in modern browsers when the SW file URL hasn't changed.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+    navigator.serviceWorker.register('/sw.js', { scope: '/admin/' })
+      .catch(err => console.warn('SW registration failed:', err))
   }, [])
 
   // ── Initial load + polling. Re-runs (and clears the interval) when month
