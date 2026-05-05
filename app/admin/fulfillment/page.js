@@ -2,7 +2,22 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v4 · 2026-05-04 17:55 (cache-bust)'
+const PAGE_VERSION = 'v5 · 2026-05-04 18:10 (month filter)'
+
+// 12 months back from now, plus current. Used to populate the Month dropdown.
+function buildMonthOptions() {
+  const out = []
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+    const value = d.toISOString().slice(0, 7) // YYYY-MM
+    const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    out.push({ value, label })
+  }
+  return out
+}
+const MONTH_OPTIONS = buildMonthOptions()
+const CURRENT_MONTH = MONTH_OPTIONS[0].value
 const STAFF = ['Angela', 'Mark', 'Sean']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
@@ -36,6 +51,7 @@ export default function FulfillmentPage() {
   const [filter, setFilter]       = useState('active')
   const [savingIds, setSavingIds] = useState(new Set())
   const [savedFlash, setSavedFlash] = useState(0)
+  const [month, setMonth] = useState(CURRENT_MONTH)
 
   // ── Refs (synchronously updated, never stale) ────────────────────────────
   // Anything the polling callback or async PATCH path needs to read MUST go
@@ -47,6 +63,8 @@ export default function FulfillmentPage() {
   const pollRef        = useRef(null)
 
   useEffect(() => { adminKeyRef.current = adminKey }, [adminKey])
+  const monthRef = useRef(CURRENT_MONTH)
+  useEffect(() => { monthRef.current = month }, [month])
   // savingIds ref is updated SYNCHRONOUSLY inside patchOrder (not via effect),
   // so the polling skip check is immune to the React render cycle.
 
@@ -66,7 +84,7 @@ export default function FulfillmentPage() {
       if (Date.now() - lastSaveAtRef.current < SAVE_COOLDOWN_MS) return
     }
     try {
-      const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(key)}&_=${Date.now()}`, {
+      const res = await fetch(`/api/admin/fulfillment/orders?key=${encodeURIComponent(key)}&month=${monthRef.current}&_=${Date.now()}`, {
         cache: 'no-store',
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -94,14 +112,15 @@ export default function FulfillmentPage() {
     }
   }, [])
 
-  // ── Initial load + polling ───────────────────────────────────────────────
+  // ── Initial load + polling. Re-runs (and clears the interval) when month
+  //    changes so the new selection takes effect immediately. ──────────────
   useEffect(() => {
     if (!authed || !adminKey) return
     setLoading(true)
     fetchOrders({ force: true }).finally(() => setLoading(false))
     pollRef.current = setInterval(() => fetchOrders(), POLL_INTERVAL_MS)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [authed, adminKey, fetchOrders])
+  }, [authed, adminKey, fetchOrders, month])
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -208,7 +227,7 @@ export default function FulfillmentPage() {
         <div>
           <h1 className="text-xl font-bold text-[#0d1b2a] tracking-wide">Fulfillment</h1>
           <p className="text-xs text-gray-400 mt-1">
-            {orders.length} orders · syncs from peers every 30s · {PAGE_VERSION}
+            {orders.length} orders in {MONTH_OPTIONS.find(o => o.value === month)?.label || month} · syncs every 30s · {PAGE_VERSION}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -228,6 +247,20 @@ export default function FulfillmentPage() {
             className="ml-3 text-red-700 underline font-bold">Refresh</button>
         </div>
       )}
+
+      {/* Month picker — narrows the working set to a single calendar month */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Month:</label>
+        <select
+          value={month}
+          onChange={e => setMonth(e.target.value)}
+          className="text-sm font-bold border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-[#2196f3]"
+        >
+          {MONTH_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {[

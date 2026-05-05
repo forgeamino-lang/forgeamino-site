@@ -2,22 +2,35 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '../../../../../lib/adminAuth'
 import { createServerClient } from '../../../../../lib/supabase'
 
-// GET /api/admin/fulfillment/orders?key=ADMIN_PASSWORD&since=YYYY-MM-DD
-// Returns orders for the fulfillment workflow page. Defaults to the last 60 days
-// to keep payload small; older orders generally don't need active fulfillment.
+// GET /api/admin/fulfillment/orders?key=ADMIN_PASSWORD
+//   ?month=YYYY-MM   filter to that calendar month (preferred)
+//   ?since=YYYY-MM-DD legacy: orders >= this date
+//   default          current month
 export const dynamic = 'force-dynamic'
+
+function monthBounds(yyyymm) {
+  // Return [startISO, endISO) for a YYYY-MM string
+  const [y, m] = yyyymm.split('-').map(Number)
+  if (!y || !m || m < 1 || m > 12) return null
+  const start = new Date(Date.UTC(y, m - 1, 1)).toISOString()
+  const end   = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1)).toISOString()
+  return [start, end]
+}
 
 export async function GET(request) {
   const unauthorized = requireAdmin(request)
   if (unauthorized) return unauthorized
 
   const url = new URL(request.url)
-  const since =
-    url.searchParams.get('since') ||
-    new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+  const monthParam = url.searchParams.get('month')
+  const sinceParam = url.searchParams.get('since')
+
+  // Default to current month (UTC) if neither is provided
+  const defaultMonth = new Date().toISOString().slice(0, 7)
+  const month = monthParam || (sinceParam ? null : defaultMonth)
 
   const supabase = createServerClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('orders')
     .select(
       `id, order_number, created_at, customer_name, customer_phone, customer_email,
@@ -25,8 +38,19 @@ export async function GET(request) {
        payment_method, payment_status, fulfillment_status, tracking_number,
        affiliate_code, claimed_by, claimed_at, shipped_at, delivered_at`
     )
-    .gte('created_at', since)
     .order('created_at', { ascending: false })
+
+  if (month) {
+    const bounds = monthBounds(month)
+    if (!bounds) {
+      return NextResponse.json({ error: `Invalid month: ${month}` }, { status: 400 })
+    }
+    query = query.gte('created_at', bounds[0]).lt('created_at', bounds[1])
+  } else if (sinceParam) {
+    query = query.gte('created_at', sinceParam)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -35,7 +59,7 @@ export async function GET(request) {
   // back to the client. Without this, peers' edits could appear to "revert"
   // because polling reads a cached pre-edit body.
   return NextResponse.json(
-    { orders: data, fetched_at: new Date().toISOString() },
+    { orders: data, fetched_at: new Date().toISOString(), month, since: sinceParam || null },
     { headers: {
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
       'CDN-Cache-Control': 'no-store',
