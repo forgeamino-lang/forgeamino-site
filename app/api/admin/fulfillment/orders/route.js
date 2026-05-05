@@ -34,9 +34,10 @@ export async function GET(request) {
 
   const supabase = createServerClient()
   // Cache-buster — append a no-op filter whose value changes every call so
-  // any HTTP-cache layer between us and PostgREST (Supabase's API gateway,
-  // any CDN, etc.) sees a unique URL and can't serve a stale response.
-  const _cacheBust = Date.now().toString(36) + Math.random().toString(36).slice(2)
+  // any HTTP-cache layer between us and PostgREST sees a unique URL and can't
+  // serve a stale response. Filter is on order_number (text) so any random
+  // string is safely accepted by Postgres without UUID-format validation.
+  const _cacheBust = '__nomatch_' + Date.now().toString(36) + Math.random().toString(36).slice(2)
   let query = supabase
     .from('orders')
     .select(
@@ -46,7 +47,7 @@ export async function GET(request) {
        affiliate_code, claimed_by, claimed_at, shipped_at, delivered_at`
     )
     .order('created_at', { ascending: false })
-    .neq('id', '00000000-0000-0000-0000-' + _cacheBust.slice(0, 12).padEnd(12, '0'))
+    .neq('order_number', _cacheBust)
 
   if (month) {
     const bounds = monthBounds(month)

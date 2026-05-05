@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v9 · 2026-05-04 20:00 (debug + force-no-cache)'
+const PAGE_VERSION = 'v10 · 2026-05-04 20:10 (cache-bust fix)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
