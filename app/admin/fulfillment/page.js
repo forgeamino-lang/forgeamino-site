@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v7 · 2026-05-04 18:35 (push)'
+const PAGE_VERSION = 'v8 · 2026-05-04 19:30 (no-intercept SW)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -197,12 +197,24 @@ export default function FulfillmentPage() {
   }, [])
 
   // ── Register PWA service worker on mount ─────────────────────────────────
-  // The SW handles offline shell + push notifications (Phase 3). Re-registers
-  // are no-ops in modern browsers when the SW file URL hasn't changed.
+  // SW only handles push notifications now — no fetch interception at all.
+  // When the SW switches versions and posts back 'sw-activated', force a page
+  // reload so any previously-cached state from the old fetch-intercepting SW
+  // is flushed.
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
     navigator.serviceWorker.register('/sw.js', { scope: '/admin/' })
       .catch(err => console.warn('SW registration failed:', err))
+    let reloaded = false
+    function onMessage(e) {
+      if (e.data?.type === 'sw-activated' && !reloaded) {
+        reloaded = true
+        // Small delay so React can settle, then hard-reload
+        setTimeout(() => window.location.reload(), 250)
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage)
   }, [])
 
   // ── Initial load + polling. Re-runs (and clears the interval) when month
