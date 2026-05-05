@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v8 · 2026-05-04 19:30 (no-intercept SW)'
+const PAGE_VERSION = 'v9 · 2026-05-04 20:00 (debug + force-no-cache)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -100,6 +100,10 @@ export default function FulfillmentPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       const fetched = data.orders || []
+      // Diagnostic: log the first 3 orders' key fields so Sean can see in
+      // DevTools if a polling response ever returns stale data
+      console.log('[fetchOrders] got', fetched.length, 'orders. first 3:',
+        fetched.slice(0, 3).map(o => ({ ord: o.order_number, claim: o.claimed_by, paid: o.payment_status, ful: o.fulfillment_status })))
       setOrders(prev => {
         if (savingIdsRef.current.size === 0) return fetched
         const prevById = new Map(prev.map(o => [o.id, o]))
@@ -268,6 +272,7 @@ export default function FulfillmentPage() {
         throw new Error(j.error || `HTTP ${res.status}`)
       }
       const j = await res.json()
+      console.log('[patchOrder]', orderId.slice(0, 8), 'sent:', patch, '← got back:', j.order)
       // Stamp the cooldown BEFORE removing from savingIds, so even if polling
       // fires immediately on the savingIds-cleared render it still sees the
       // cooldown window and skips.

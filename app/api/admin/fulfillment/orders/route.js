@@ -6,7 +6,10 @@ import { createServerClient } from '../../../../../lib/supabase'
 //   ?month=YYYY-MM   filter to that calendar month (preferred)
 //   ?since=YYYY-MM-DD legacy: orders >= this date
 //   default          current month
-export const dynamic = 'force-dynamic'
+export const dynamic       = 'force-dynamic'
+export const fetchCache    = 'force-no-store'   // Next.js data cache off
+export const revalidate    = 0                  // never reuse a render
+export const runtime       = 'nodejs'           // explicit; avoids edge cache differences
 
 function monthBounds(yyyymm) {
   // Return [startISO, endISO) for a YYYY-MM string
@@ -30,6 +33,10 @@ export async function GET(request) {
   const month = monthParam || (sinceParam ? null : defaultMonth)
 
   const supabase = createServerClient()
+  // Cache-buster — append a no-op filter whose value changes every call so
+  // any HTTP-cache layer between us and PostgREST (Supabase's API gateway,
+  // any CDN, etc.) sees a unique URL and can't serve a stale response.
+  const _cacheBust = Date.now().toString(36) + Math.random().toString(36).slice(2)
   let query = supabase
     .from('orders')
     .select(
@@ -39,6 +46,7 @@ export async function GET(request) {
        affiliate_code, claimed_by, claimed_at, shipped_at, delivered_at`
     )
     .order('created_at', { ascending: false })
+    .neq('id', '00000000-0000-0000-0000-' + _cacheBust.slice(0, 12).padEnd(12, '0'))
 
   if (month) {
     const bounds = monthBounds(month)
