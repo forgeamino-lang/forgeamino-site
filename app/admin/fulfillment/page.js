@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v10 · 2026-05-04 20:10 (cache-bust fix)'
+const PAGE_VERSION = 'v11 · 2026-05-04 20:20 (stay logged in)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -193,7 +193,7 @@ export default function FulfillmentPage() {
 
   // ── Auto-login from sessionStorage ───────────────────────────────────────
   useEffect(() => {
-    const saved = typeof window !== 'undefined' ? sessionStorage.getItem('forge-admin-key') : ''
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('forge-admin-key') : ''
     if (saved) {
       setAdminKey(saved)
       setAuthed(true)
@@ -241,13 +241,13 @@ export default function FulfillmentPage() {
         setLoginError(res.status === 401 ? 'Invalid password' : `Error ${res.status}`)
         setLoading(false); return
       }
-      sessionStorage.setItem('forge-admin-key', password)
+      localStorage.setItem('forge-admin-key', password)
       setAdminKey(password); setAuthed(true)
     } catch { setLoginError('Failed to connect') }
     setLoading(false)
   }
   function handleLogout() {
-    sessionStorage.removeItem('forge-admin-key')
+    localStorage.removeItem('forge-admin-key')
     setAdminKey(''); setAuthed(false); setOrders([])
   }
 

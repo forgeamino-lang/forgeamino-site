@@ -28,7 +28,7 @@ export default function AdminPage() {
       const res = await fetch(`/api/orders?key=${encodeURIComponent(password)}`)
       if (!res.ok) { setError('Invalid password'); setLoading(false); return }
       const data = await res.json()
-      sessionStorage.setItem('forge-admin-key', password)
+      localStorage.setItem('forge-admin-key', password)
       setOrders(data.orders)
       setAuthed(true)
     } catch {
@@ -38,7 +38,7 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('forge-admin-key')
+    const saved = localStorage.getItem('forge-admin-key')
     if (saved) {
       setPassword(saved)
       fetch(`/api/orders?key=${encodeURIComponent(saved)}`)
@@ -93,7 +93,7 @@ export default function AdminPage() {
           <h1 className="text-xl font-bold text-[#0d1b2a] tracking-wide">Orders Dashboard</h1>
           <p className="text-xs text-gray-400 mt-1">{orders.length} total orders</p>
         </div>
-        <button onClick={() => { setAuthed(false); sessionStorage.removeItem('forge-admin-key') }}
+        <button onClick={() => { setAuthed(false); localStorage.removeItem('forge-admin-key') }}
           className="text-xs text-gray-400 hover:text-gray-600">Sign out</button>
       </div>
 

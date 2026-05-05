@@ -14,7 +14,7 @@ export default function AdminOrderDetailPage() {
   const [notesInput, setNotesInput] = useState('')
   const [message, setMessage] = useState('')
 
-  const adminKey = typeof window !== 'undefined' ? sessionStorage.getItem('forge-admin-key') : ''
+  const adminKey = typeof window !== 'undefined' ? localStorage.getItem('forge-admin-key') : ''
 
   useEffect(() => {
     if (!adminKey) { router.push('/admin'); return }
