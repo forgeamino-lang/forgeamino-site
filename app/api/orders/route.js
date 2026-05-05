@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail, sendOrderReceivedAlert } from '../../../lib/email'
 import { syncToQuickBooks } from '../../../lib/quickbooks'
+import { broadcastOrderNotification } from '../../../lib/pushNotify'
 import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals } from '../../../lib/orderValidation'
@@ -171,6 +172,10 @@ export async function POST(request) {
           extra: { order_number, customer_email },
           tags: { area: 'orders', failure: 'quickbooks-sync' },
         })
+      }),
+      broadcastOrderNotification(order).catch(e => {
+        console.error('Push notification broadcast failed:', e?.message)
+        // Notification is best-effort — never block or fail the order
       })
     ])
 

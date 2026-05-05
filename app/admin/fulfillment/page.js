@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v6 · 2026-05-04 18:25 (PWA install)'
+const PAGE_VERSION = 'v7 · 2026-05-04 18:35 (push)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -22,6 +22,16 @@ const STAFF = ['Angela', 'Mark', 'Sean']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
 const POLL_INTERVAL_MS   = 30000   // 30s — generous, polls only catch peer edits
+
+// Browser PushManager wants the public VAPID key as a Uint8Array
+function urlBase64ToUint8Array(b64) {
+  const padding = '='.repeat((4 - b64.length % 4) % 4)
+  const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  const out = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
+  return out
+}
 const SAVE_COOLDOWN_MS   = 5000    // skip polling for 5s after any local save
 
 function isActive(o)   { return o.fulfillment_status !== 'delivered' }
@@ -102,6 +112,80 @@ export default function FulfillmentPage() {
       setError(`Refresh failed: ${e.message}`)
     }
   }, [])
+
+  // ── Push notification state ──────────────────────────────────────────────
+  const [pushUser, setPushUser]         = useState('')
+  const [pushStatus, setPushStatus]     = useState('idle')   // idle | subscribing | subscribed | denied | unsupported | error
+  const [pushSub, setPushSub]           = useState(null)
+  const [pushUiOpen, setPushUiOpen]     = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushStatus('unsupported'); return
+    }
+    if (Notification.permission === 'denied') { setPushStatus('denied'); return }
+    // Restore prior selected user from local storage
+    const savedUser = localStorage.getItem('forge-push-user')
+    if (savedUser) setPushUser(savedUser)
+    // Detect existing subscription (returning visit)
+    navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription())
+      .then(sub => {
+        if (sub) { setPushSub(sub); setPushStatus('subscribed') }
+      }).catch(() => {})
+  }, [])
+
+  async function handleEnableNotifications() {
+    if (!pushUser) { setError('Pick a user (Angela / Mark / Sean) first'); return }
+    setPushStatus('subscribing'); setError('')
+    try {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') { setPushStatus(perm === 'denied' ? 'denied' : 'idle'); return }
+      const reg = await navigator.serviceWorker.ready
+      const vapidPubKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidPubKey) {
+        setError('Server is missing NEXT_PUBLIC_VAPID_PUBLIC_KEY env var')
+        setPushStatus('error'); return
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPubKey),
+      })
+      const res = await fetch(`/api/admin/fulfillment/subscribe?key=${encodeURIComponent(adminKeyRef.current)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_name: pushUser,
+          subscription: sub.toJSON(),
+          user_agent: navigator.userAgent,
+        }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `HTTP ${res.status}`)
+      }
+      localStorage.setItem('forge-push-user', pushUser)
+      setPushSub(sub); setPushStatus('subscribed')
+    } catch (e) {
+      console.error(e); setError(`Notifications setup failed: ${e.message}`); setPushStatus('error')
+    }
+  }
+
+  async function handleDisableNotifications() {
+    try {
+      if (pushSub) {
+        await fetch(`/api/admin/fulfillment/subscribe?key=${encodeURIComponent(adminKeyRef.current)}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: pushSub.endpoint }),
+        })
+        await pushSub.unsubscribe()
+      }
+      setPushSub(null); setPushStatus('idle')
+    } catch (e) {
+      setError(`Couldn't disable: ${e.message}`)
+    }
+  }
 
   // ── Auto-login from sessionStorage ───────────────────────────────────────
   useEffect(() => {
@@ -256,6 +340,77 @@ export default function FulfillmentPage() {
             className="ml-3 text-red-700 underline font-bold">Refresh</button>
         </div>
       )}
+
+      {/* Push notifications — collapsible row */}
+      <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
+        <button
+          onClick={() => setPushUiOpen(o => !o)}
+          className="flex items-center justify-between w-full text-left text-xs"
+        >
+          <span className="font-bold text-[#0d1b2a] uppercase tracking-wide">
+            Notifications on this device:&nbsp;
+            <span className={
+              pushStatus === 'subscribed' ? 'text-green-600' :
+              pushStatus === 'denied'     ? 'text-red-600'   :
+              pushStatus === 'unsupported'? 'text-gray-400'  :
+              'text-yellow-700'
+            }>
+              {pushStatus === 'subscribed' ? `On (${pushUser})` :
+               pushStatus === 'denied'     ? 'Blocked by browser' :
+               pushStatus === 'unsupported'? 'Not supported here' :
+               pushStatus === 'subscribing'? 'Setting up…' :
+               'Off'}
+            </span>
+          </span>
+          <span className="text-gray-400">{pushUiOpen ? '▴' : '▾'}</span>
+        </button>
+
+        {pushUiOpen && (
+          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-3">
+            {pushStatus === 'subscribed' ? (
+              <>
+                <span className="text-xs text-gray-600">
+                  This device will buzz when a new order comes in. Subscribed as <strong>{pushUser}</strong>.
+                </span>
+                <button onClick={handleDisableNotifications}
+                  className="text-xs font-bold uppercase tracking-wide bg-gray-100 hover:bg-gray-200 text-[#0d1b2a] px-3 py-2 rounded-full">
+                  Turn off
+                </button>
+              </>
+            ) : pushStatus === 'denied' ? (
+              <span className="text-xs text-red-700">
+                Notifications are blocked for this site in your browser settings. Re-enable them in your browser's site settings, then come back and try again.
+              </span>
+            ) : pushStatus === 'unsupported' ? (
+              <span className="text-xs text-gray-500">
+                This browser doesn't support web push. iPhones need the page <em>installed as an app</em> via Add to Home Screen — open in Safari and install first.
+              </span>
+            ) : (
+              <>
+                <label className="text-xs text-gray-500">I am:</label>
+                <select
+                  value={pushUser}
+                  onChange={e => setPushUser(e.target.value)}
+                  className="text-sm font-bold border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-[#2196f3]"
+                >
+                  <option value="">— pick —</option>
+                  {STAFF.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button
+                  onClick={handleEnableNotifications}
+                  disabled={!pushUser || pushStatus === 'subscribing'}
+                  className="text-xs font-bold uppercase tracking-wide bg-[#0d1b2a] hover:bg-[#1a2e45] text-white px-3 py-2 rounded-full disabled:opacity-50"
+                >
+                  {pushStatus === 'subscribing' ? 'Setting up…' : 'Enable Notifications'}
+                </button>
+                <span className="text-xs text-gray-400">
+                  Your phone/laptop will buzz the moment a new order is placed.
+                </span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Month picker — narrows the working set to a single calendar month */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
