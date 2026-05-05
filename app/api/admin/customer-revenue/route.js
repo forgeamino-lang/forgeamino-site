@@ -50,9 +50,16 @@ export async function GET(request) {
 
     // 1) Resolve the company to one or more Customer ids (CompanyName or DisplayName)
     const safe = company.replace(/'/g, "''")
-    const custQ = `SELECT Id, DisplayName, CompanyName FROM Customer WHERE CompanyName LIKE '%${safe}%' OR DisplayName LIKE '%${safe}%' MAXRESULTS 100`
-    const custResp = await qboQuery(accessToken, realmId, custQ)
-    const customers = custResp.Customer || []
+    // QBO query language doesn't support OR, so run two queries and merge
+    const [byCompany, byDisplay] = await Promise.all([
+      qboQuery(accessToken, realmId, `SELECT Id, DisplayName, CompanyName FROM Customer WHERE CompanyName LIKE '%${safe}%' MAXRESULTS 100`),
+      qboQuery(accessToken, realmId, `SELECT Id, DisplayName, CompanyName FROM Customer WHERE DisplayName LIKE '%${safe}%' MAXRESULTS 100`),
+    ])
+    const seen = new Set()
+    const customers = [...(byCompany.Customer || []), ...(byDisplay.Customer || [])].filter(c => {
+      if (seen.has(c.Id)) return false
+      seen.add(c.Id); return true
+    })
     if (customers.length === 0) {
       return NextResponse.json({ company, since, until, customers: [], total_invoices: 0, totals: { gross: 0, subtotal_ex_shipping_tax: 0, tax: 0, shipping: 0 } })
     }
