@@ -134,38 +134,21 @@ async function createExpensePurchase(realmId, token, { date, amount, paymentAcco
 // ── Main handler ──────────────────────────────────────────────────────────
 // GET  /api/admin/qbo-bookkeeping?key=...           → preview (no writes)
 // POST /api/admin/qbo-bookkeeping?key=...&go=1       → execute
-async function buildPlan(realmId, token) {
-  // Look up existing accounts/vendors to determine what already exists vs needs creating
-  const accountStatus = {}
-  for (const a of ACCOUNTS) {
-    const existing = await findAccountByName(realmId, token, a.name)
-    accountStatus[a.name] = existing ? { exists: true, id: existing.Id } : { exists: false }
-  }
-  const vendorStatus = {}
-  for (const v of [...VENDORS, 'Andrew']) {
-    const existing = await findVendorByName(realmId, token, v)
-    vendorStatus[v] = existing ? { exists: true, id: existing.Id } : { exists: false }
-  }
-
-  // Inventory Asset (auto-existing default account in QBO)
-  const inventoryAsset = await findAccountByName(realmId, token, 'Inventory Asset')
-
+function buildStaticPlan() {
   return {
     accounts: ACCOUNTS.map(a => ({
       name: a.name,
       type: `${a.AccountType} → ${a.AccountSubType}`,
-      action: accountStatus[a.name].exists ? 'use existing' : 'CREATE',
-      id: accountStatus[a.name].id || null,
+      action: 'find-or-create on execute',
     })),
-    inventoryAsset: inventoryAsset ? { id: inventoryAsset.Id, name: inventoryAsset.Name } : null,
-    vendors: [...VENDORS, 'Andrew'].map(v => ({
+    inventoryAsset: { name: 'Inventory Asset (existing default)' },
+    vendors: [...VENDORS, 'Andrew (existing)'].map(v => ({
       name: v,
-      action: vendorStatus[v].exists ? 'use existing' : 'CREATE',
-      id: vendorStatus[v].id || null,
+      action: v.includes('existing') ? 'use existing' : 'find-or-create on execute',
     })),
     equityDeposit: EQUITY_DEPOSIT,
     poExpenses: PO_EXPENSES,
-    poTotal: PO_EXPENSES.reduce((s, p) => s + p.amount, 0),
+    poTotal: Number(PO_EXPENSES.reduce((s, p) => s + p.amount, 0).toFixed(2)),
   }
 }
 
@@ -173,14 +156,14 @@ async function handle(request, { execute }) {
   const unauthorized = requireAdmin(request)
   if (unauthorized) return unauthorized
 
+  // Preview: return the static plan (no QBO calls — instant)
+  if (!execute) {
+    return NextResponse.json({ ok: true, mode: 'preview', plan: buildStaticPlan() })
+  }
+
   const realmId = process.env.QBO_REALM_ID
   if (!realmId) return NextResponse.json({ ok: false, error: 'QBO_REALM_ID not set' }, { status: 500 })
   const token = await getAccessToken()
-
-  const plan = await buildPlan(realmId, token)
-  if (!execute) {
-    return NextResponse.json({ ok: true, mode: 'preview', plan })
-  }
 
   // EXECUTE
   const log = []
