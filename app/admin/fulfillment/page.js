@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v11 · 2026-05-04 20:20 (stay logged in)'
+const PAGE_VERSION = 'v12 · 2026-05-06 (invoice + email)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -460,25 +460,26 @@ export default function FulfillmentPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm min-w-[1100px]">
+        <table className="w-full text-sm min-w-[1300px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 text-left">
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Claimed by</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Date</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Order</th>
+              <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Invoice</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Customer</th>
+              <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Email</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Items</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide text-right">Total</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Type</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Aff.</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Paid</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Tracking #</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} className="text-center py-12 text-gray-400 text-sm">No orders match this filter</td></tr>
+              <tr><td colSpan={12} className="text-center py-12 text-gray-400 text-sm">No orders match this filter</td></tr>
             )}
             {filtered.map(order => {
               const saving = savingIds.has(order.id)
@@ -498,12 +499,35 @@ export default function FulfillmentPage() {
                     {new Date(order.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-3 py-2 font-bold text-[#0d1b2a] whitespace-nowrap">{order.order_number}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <a
+                      href={`/api/admin/orders/${encodeURIComponent(order.order_number)}/invoice?key=${encodeURIComponent(adminKey)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open QBO invoice PDF"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#2196f3] hover:underline"
+                    >
+                      📄 PDF
+                    </a>
+                  </td>
                   <td className="px-3 py-2">
                     <p className="font-medium text-[#0d1b2a]">{order.customer_name}</p>
                     <p className="text-[11px] text-gray-500">
                       {order.customer_phone || ''}
                       {order.shipping_address?.state ? ` · ${order.shipping_address.state}` : ''}
                     </p>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-700">
+                    {order.customer_email ? (
+                      <a
+                        href={`mailto:${order.customer_email}`}
+                        className="text-[#2196f3] hover:underline break-all"
+                      >
+                        {order.customer_email}
+                      </a>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-700 max-w-[260px]">{summarizeItems(order.line_items)}</td>
                   <td className="px-3 py-2 text-right font-bold tabular-nums">${Number(order.total).toFixed(2)}</td>
@@ -526,20 +550,6 @@ export default function FulfillmentPage() {
                     >
                       {FULFILLMENT_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="text"
-                      defaultValue={order.tracking_number || ''}
-                      onBlur={e => {
-                        const v = e.target.value.trim()
-                        if (v !== (order.tracking_number || '')) {
-                          patchOrder(order.id, { tracking_number: v })
-                        }
-                      }}
-                      placeholder="—"
-                      className="text-xs border border-gray-200 rounded px-2 py-1 w-32 bg-white focus:outline-none focus:border-[#2196f3]"
-                    />
                   </td>
                 </tr>
               )
