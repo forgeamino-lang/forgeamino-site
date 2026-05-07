@@ -75,14 +75,40 @@ export async function POST(request) {
       shipping_amount: server_shipping_amount,
     }
 
-    // ── Resolve affiliate code, if any ──────────────────────────────────────
-    // Customer-typed code is matched case-insensitively against the affiliates
-    // table. We store the literal typed string regardless (forensic record),
-    // and only fill affiliate_id when the code resolved to an active row.
-    // A typo / unknown / inactive code never blocks the order.
+    // ── Resolve affiliate code with sticky first-touch attribution ─────────
+    // Once a customer's email is mapped to an affiliate code in
+    // customer_affiliate_attribution, every future order picks up that locked
+    // code regardless of what the form has. New attributions get written when
+    // a customer's first ordered code resolves to an active affiliate.
+    // Silent override — customer never sees a difference.
     let affiliate_code_clean = null
     let affiliate_id = null
-    if (typeof affiliate_code === 'string') {
+    let attribution_source = 'none'   // 'locked' | 'form' | 'none'
+    let should_write_attribution = false
+    const email_lower = typeof customer_email === 'string'
+      ? customer_email.trim().toLowerCase()
+      : ''
+
+    // Step 1 — does this email already have a locked attribution?
+    if (email_lower) {
+      try {
+        const { data: lock } = await supabase
+          .from('customer_affiliate_attribution')
+          .select('affiliate_code, affiliate_id')
+          .eq('customer_email', email_lower)
+          .maybeSingle()
+        if (lock?.affiliate_code) {
+          affiliate_code_clean = lock.affiliate_code
+          affiliate_id = lock.affiliate_id || null
+          attribution_source = 'locked'
+        }
+      } catch (lookupErr) {
+        console.error('Sticky attribution lookup failed:', lookupErr)
+      }
+    }
+
+    // Step 2 — if not locked, fall back to the form-typed code (and resolve it)
+    if (attribution_source === 'none' && typeof affiliate_code === 'string') {
       const trimmed = affiliate_code.trim()
       if (trimmed.length > 0) {
         affiliate_code_clean = trimmed
@@ -93,9 +119,14 @@ export async function POST(request) {
             .ilike('code', trimmed)
             .eq('active', true)
             .maybeSingle()
-          if (aff) affiliate_id = aff.id
+          if (aff) {
+            affiliate_id = aff.id
+            // Persist the cleanly-cased code so future lookups match exactly
+            affiliate_code_clean = aff.code
+            attribution_source = 'form'
+            should_write_attribution = !!email_lower
+          }
         } catch (lookupErr) {
-          // Lookup failure is logged but never blocks the order
           console.error('Affiliate lookup failed:', lookupErr)
         }
       }
@@ -132,6 +163,27 @@ export async function POST(request) {
         tags: { area: 'orders', failure: 'supabase-insert' },
       })
       return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
+    }
+
+    // ── Write the sticky attribution row, first time only ─────────────────
+    // After the order is committed, lock this customer to the resolved
+    // affiliate. Conflict is impossible because the lookup above would have
+    // hit it; but we guard with onConflict do-nothing semantics so a race
+    // can never duplicate-insert.
+    if (should_write_attribution && email_lower && affiliate_code_clean) {
+      try {
+        await supabase
+          .from('customer_affiliate_attribution')
+          .upsert({
+            customer_email: email_lower,
+            affiliate_code: affiliate_code_clean,
+            affiliate_id: affiliate_id,
+            first_order_number: order_number,
+          }, { onConflict: 'customer_email', ignoreDuplicates: true })
+      } catch (attrErr) {
+        // Non-fatal; the order is already saved and tagged correctly.
+        console.error('Sticky attribution write failed:', attrErr)
+      }
     }
 
     const order = {
