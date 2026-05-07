@@ -17,9 +17,10 @@ const BASE_URL =
 // ── Plan: what we're going to create ───────────────────────────────────────
 // Accounts to ensure exist:
 const ACCOUNTS = [
-  { name: 'Founders Account',     AccountType: 'Bank',                    AccountSubType: 'CashOnHand' },
-  { name: "Members' Equity",      AccountType: 'Equity',                  AccountSubType: 'OwnersEquity' },
-  { name: 'Due to Owner — Sean',  AccountType: 'Other Current Liability', AccountSubType: 'OtherCurrentLiabilities' },
+  { name: 'Founders Account',      AccountType: 'Bank',                    AccountSubType: 'CashOnHand' },
+  { name: "Members' Equity",       AccountType: 'Equity',                  AccountSubType: 'OwnersEquity' },
+  { name: 'Due to Owner — Sean',   AccountType: 'Other Current Liability', AccountSubType: 'OtherCurrentLiabilities' },
+  { name: 'Compounded Goods Cost', AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
 ]
 
 // Vendors to ensure exist (Andrew already exists in QBO)
@@ -156,9 +157,12 @@ async function handle(request, { execute }) {
   const unauthorized = requireAdmin(request)
   if (unauthorized) return unauthorized
 
+  const url = new URL(request.url)
+  const accountsOnly = url.searchParams.get('accountsOnly') === '1'
+
   // Preview: return the static plan (no QBO calls — instant)
   if (!execute) {
-    return NextResponse.json({ ok: true, mode: 'preview', plan: buildStaticPlan() })
+    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, plan: buildStaticPlan() })
   }
 
   const realmId = process.env.QBO_REALM_ID
@@ -179,6 +183,16 @@ async function handle(request, { execute }) {
       log.push({ step: 'account', name: a.name, action: 'created', id: created.Id })
     }
   }
+  if (accountsOnly) {
+    return NextResponse.json({
+      ok: true,
+      mode: 'execute',
+      accountsOnly: true,
+      summary: { accounts: Object.keys(accountIds).length, vendors: 0, equity_deposit_id: null, purchases_created: 0, purchases_failed: 0 },
+      log,
+    })
+  }
+
   const inventoryAsset = await findAccountByName(realmId, token, 'Inventory Asset')
   if (!inventoryAsset) {
     return NextResponse.json({ ok: false, error: 'Inventory Asset account not found in QBO', log }, { status: 500 })
