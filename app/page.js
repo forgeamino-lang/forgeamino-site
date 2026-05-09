@@ -88,46 +88,6 @@ export default function Home() {
               </div>
               </div>
 
-      {/* ── COMING SOON ── */}
-      <section className="bg-white py-12 md:py-20">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-start">
-            <div>
-              <h2 className="text-3xl font-black text-[#0d1b2a] uppercase leading-tight mb-6">
-                Coming Soon!!
-              </h2>
-              <ul className="space-y-3 mb-6">
-                {[
-                  { name: 'NAD+', dose: '1000mg' },
-                  { name: 'BPC157 (Oral)', dose: '500mcg' },
-                  { name: 'MOTS-C', dose: '50mg' },
-                  { name: 'PT141', dose: '10mg' },
-                ].map((product) => (
-                  <li key={product.name} className="text-[#0d1b2a] text-base">
-                    <span className="font-semibold">{product.name}</span>{' '}
-                    <span className="text-gray-500">{product.dose}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-gray-500 text-sm">Check back for more Research Product releases!!</p>
-            </div>
-
-            <div className="bg-[#0d1b2a] rounded-lg p-8 text-center flex flex-col justify-center">
-              <p className="text-[#4fc3f7] text-xs font-bold tracking-widest uppercase mb-4">Currently Available</p>
-              <h3 className="text-white font-black text-2xl uppercase mb-4">Shop All Products</h3>
-              <p className="text-white/60 text-sm mb-8 leading-relaxed">
-                Browse our full catalog of research peptides, all third-party lab tested for purity and potency.
-              </p>
-              <Link
-                href="/shop"
-                className="bg-[#2196f3] hover:bg-[#1976d2] text-white font-bold px-8 py-4 text-sm tracking-widest uppercase transition-colors rounded"
-              >
-                Shop Now
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }
