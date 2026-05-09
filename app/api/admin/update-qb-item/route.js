@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '../../../../lib/adminAuth'
 import { getAccessToken } from '../../../../lib/quickbooks'
 
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 const BASE_URL =
   process.env.QBO_ENVIRONMENT === 'production'
     ? 'https://quickbooks.api.intuit.com'
