@@ -470,6 +470,10 @@ export default function CheckoutPage() {
               <p className="text-xs text-gray-400 text-center mt-3">
                 No payment taken now. You'll send Venmo after checkout.
               </p>
+
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Order confirmation email will come from <strong>orders@forgeamino.us</strong>
+              </p>
             </div>
           </div>
         </div>
