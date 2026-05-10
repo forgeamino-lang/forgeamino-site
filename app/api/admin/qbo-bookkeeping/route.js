@@ -22,6 +22,7 @@ const ACCOUNTS = [
   { name: 'Due to Owner — Sean',   AccountType: 'Other Current Liability', AccountSubType: 'OtherCurrentLiabilities' },
   { name: 'Compounded Goods Cost', AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
   { name: 'Testing Costs',         AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
+  { name: 'Operating Account',     AccountType: 'Bank',                    AccountSubType: 'CashOnHand' },
 ]
 
 // Testing-lab vendors + expenses (BT Labs + Freedom Diagnostics).
@@ -124,6 +125,26 @@ async function createDeposit(realmId, token, { date, amount, toAccountId, fromAc
   const j = await qboFetch(realmId, token, '/deposit', { method: 'POST', body: JSON.stringify(body) })
   return j?.Deposit
 }
+async function createJournalEntry(realmId, token, { date, memo, lines }) {
+  // lines = [{ amount, accountId, postingType: 'Debit'|'Credit', description? }]
+  const body = {
+    TxnDate: date,
+    PrivateNote: memo,
+    DocNumber: undefined,
+    Line: lines.map(l => ({
+      DetailType: 'JournalEntryLineDetail',
+      Amount: l.amount,
+      Description: l.description || memo,
+      JournalEntryLineDetail: {
+        PostingType: l.postingType,
+        AccountRef: { value: l.accountId },
+      },
+    })),
+  }
+  const j = await qboFetch(realmId, token, '/journalentry', { method: 'POST', body: JSON.stringify(body) })
+  return j?.JournalEntry
+}
+
 async function createExpensePurchase(realmId, token, { date, amount, paymentAccountId, vendorId, accountId, memo, refNo }) {
   const body = {
     PaymentType: 'Cash',
@@ -146,6 +167,23 @@ async function createExpensePurchase(realmId, token, { date, amount, paymentAcco
 // ── Main handler ──────────────────────────────────────────────────────────
 // GET  /api/admin/qbo-bookkeeping?key=...           → preview (no writes)
 // POST /api/admin/qbo-bookkeeping?key=...&go=1       → execute
+function buildOwnerLoanZeroPlan(amount) {
+  return {
+    journalEntry: {
+      date: new Date().toISOString().slice(0, 10),
+      memo: `Reimbursement of owner loan in full — FA revenue funded payback. Due to Owner — Sean balance cleared to zero.`,
+      lines: [
+        { account: 'Due to Owner — Sean', postingType: 'Debit',  amount },
+        { account: 'Operating Account',   postingType: 'Credit', amount },
+      ],
+    },
+    netEffect: {
+      'Due to Owner — Sean': `-$${amount.toFixed(2)} (cleared)`,
+      'Operating Account':   `-$${amount.toFixed(2)} (goes negative until revenue deposits booked)`,
+    },
+  }
+}
+
 function buildTestingPlan() {
   return {
     accounts: [{ name: 'Testing Costs', type: 'Other Current Asset → OtherCurrentAssets', action: 'find-or-create on execute' }],
@@ -180,18 +218,18 @@ async function handle(request, { execute }) {
   if (unauthorized) return unauthorized
 
   const url = new URL(request.url)
-  const accountsOnly = url.searchParams.get('accountsOnly') === '1'
-  const testingOnly  = url.searchParams.get('testingOnly')  === '1'
+  const accountsOnly  = url.searchParams.get('accountsOnly') === '1'
+  const testingOnly   = url.searchParams.get('testingOnly')  === '1'
+  const ownerLoanZero = url.searchParams.get('ownerLoanZero') === '1'
+  const ownerLoanAmount = Number(url.searchParams.get('amount') || 66546.10)
 
   // Preview: return the static plan (no QBO calls — instant)
   if (!execute) {
-    return NextResponse.json({
-      ok: true,
-      mode: 'preview',
-      accountsOnly,
-      testingOnly,
-      plan: testingOnly ? buildTestingPlan() : buildStaticPlan(),
-    })
+    let plan
+    if (ownerLoanZero) plan = buildOwnerLoanZeroPlan(ownerLoanAmount)
+    else if (testingOnly) plan = buildTestingPlan()
+    else plan = buildStaticPlan()
+    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, testingOnly, ownerLoanZero, plan })
   }
 
   const realmId = process.env.QBO_REALM_ID
@@ -285,6 +323,34 @@ async function handle(request, { execute }) {
       },
       log,
     })
+  }
+
+  // ── Zero-out Due to Owner — Sean (single journal entry) ────────────────
+  if (ownerLoanZero) {
+    const dueToOwner    = await findAccountByName(realmId, token, 'Due to Owner — Sean')
+    const operatingAcct = await findAccountByName(realmId, token, 'Operating Account')
+    if (!dueToOwner)    return NextResponse.json({ ok: false, error: "Due to Owner — Sean account missing — run ?accountsOnly=1 first", log }, { status: 500 })
+    if (!operatingAcct) return NextResponse.json({ ok: false, error: "Operating Account missing — run ?accountsOnly=1 first", log }, { status: 500 })
+
+    const amount = ownerLoanAmount
+    try {
+      const je = await createJournalEntry(realmId, token, {
+        date: new Date().toISOString().slice(0, 10),
+        memo: `Reimbursement of owner loan in full — FA revenue funded payback. Due to Owner — Sean balance cleared to zero.`,
+        lines: [
+          { amount, accountId: dueToOwner.Id,    postingType: 'Debit',  description: 'Owner loan reimbursed in full' },
+          { amount, accountId: operatingAcct.Id, postingType: 'Credit', description: 'Paid from FA operating funds' },
+        ],
+      })
+      log.push({ step: 'journal-entry', purpose: 'zero owner loan', amount, id: je?.Id })
+      return NextResponse.json({
+        ok: true, mode: 'execute', ownerLoanZero: true,
+        summary: { accounts: Object.keys(accountIds).length, journalEntryId: je?.Id, amountCleared: amount },
+        log,
+      })
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: e?.message || String(e), log }, { status: 500 })
+    }
   }
 
   const inventoryAsset = await findAccountByName(realmId, token, 'Inventory Asset')
