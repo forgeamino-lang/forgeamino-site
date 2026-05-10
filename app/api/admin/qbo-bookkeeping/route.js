@@ -21,6 +21,17 @@ const ACCOUNTS = [
   { name: "Members' Equity",       AccountType: 'Equity',                  AccountSubType: 'OwnersEquity' },
   { name: 'Due to Owner — Sean',   AccountType: 'Other Current Liability', AccountSubType: 'OtherCurrentLiabilities' },
   { name: 'Compounded Goods Cost', AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
+  { name: 'Testing Costs',         AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
+]
+
+// Testing-lab vendors + expenses (BT Labs + Freedom Diagnostics).
+// Same pattern as PO_EXPENSES: posted Category Detail to Testing Costs (BS),
+// paid from Due to Owner — Sean. P&L untouched — COGS for testing already
+// baked into per-item PurchaseCost on the inventory items.
+const TESTING_VENDORS = ['BT Labs', 'Freedom Diagnostics']
+const TESTING_EXPENSES = [
+  { ref: 'TEST-BTLABS', vendor: 'BT Labs',             amount: 4860.00,  memo: 'Testing costs to date — BT Labs. Paid personally; FA reimbursed from revenue. Capitalised to Testing Costs BS account; COGS already in per-item PurchaseCost.' },
+  { ref: 'TEST-FREEDOM', vendor: 'Freedom Diagnostics', amount: 10350.00, memo: 'Testing costs to date — Freedom Diagnostics. Paid personally; FA reimbursed from revenue. Capitalised to Testing Costs BS account; COGS already in per-item PurchaseCost.' },
 ]
 
 // Vendors to ensure exist (Andrew already exists in QBO)
@@ -135,6 +146,17 @@ async function createExpensePurchase(realmId, token, { date, amount, paymentAcco
 // ── Main handler ──────────────────────────────────────────────────────────
 // GET  /api/admin/qbo-bookkeeping?key=...           → preview (no writes)
 // POST /api/admin/qbo-bookkeeping?key=...&go=1       → execute
+function buildTestingPlan() {
+  return {
+    accounts: [{ name: 'Testing Costs', type: 'Other Current Asset → OtherCurrentAssets', action: 'find-or-create on execute' }],
+    vendors: TESTING_VENDORS.map(v => ({ name: v, action: 'find-or-create on execute' })),
+    expenses: TESTING_EXPENSES,
+    total: Number(TESTING_EXPENSES.reduce((s, e) => s + e.amount, 0).toFixed(2)),
+    paymentAccount: 'Due to Owner — Sean (existing)',
+    debitAccount: 'Testing Costs (BS asset)',
+  }
+}
+
 function buildStaticPlan() {
   return {
     accounts: ACCOUNTS.map(a => ({
@@ -159,10 +181,17 @@ async function handle(request, { execute }) {
 
   const url = new URL(request.url)
   const accountsOnly = url.searchParams.get('accountsOnly') === '1'
+  const testingOnly  = url.searchParams.get('testingOnly')  === '1'
 
   // Preview: return the static plan (no QBO calls — instant)
   if (!execute) {
-    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, plan: buildStaticPlan() })
+    return NextResponse.json({
+      ok: true,
+      mode: 'preview',
+      accountsOnly,
+      testingOnly,
+      plan: testingOnly ? buildTestingPlan() : buildStaticPlan(),
+    })
   }
 
   const realmId = process.env.QBO_REALM_ID
@@ -189,6 +218,71 @@ async function handle(request, { execute }) {
       mode: 'execute',
       accountsOnly: true,
       summary: { accounts: Object.keys(accountIds).length, vendors: 0, equity_deposit_id: null, purchases_created: 0, purchases_failed: 0 },
+      log,
+    })
+  }
+
+  // ── Testing-only flow ──────────────────────────────────────────────────
+  if (testingOnly) {
+    // Ensure required vendors exist
+    const testingVendorIds = {}
+    for (const v of TESTING_VENDORS) {
+      const existing = await findVendorByName(realmId, token, v)
+      if (existing) {
+        testingVendorIds[v] = existing.Id
+        log.push({ step: 'vendor', name: v, action: 'reused', id: existing.Id })
+      } else {
+        const created = await createVendor(realmId, token, v)
+        testingVendorIds[v] = created.Id
+        log.push({ step: 'vendor', name: v, action: 'created', id: created.Id })
+      }
+    }
+    // Resolve Testing Costs + Due to Owner account ids
+    const testingCostsAcct = await findAccountByName(realmId, token, 'Testing Costs')
+    const dueToOwnerAcct   = await findAccountByName(realmId, token, 'Due to Owner — Sean')
+    if (!testingCostsAcct) {
+      return NextResponse.json({ ok: false, error: 'Testing Costs account not found — run with ?accountsOnly=1 first', log }, { status: 500 })
+    }
+    if (!dueToOwnerAcct) {
+      return NextResponse.json({ ok: false, error: 'Due to Owner — Sean account not found — run with ?accountsOnly=1 first', log }, { status: 500 })
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const purchaseLog = []
+    for (const exp of TESTING_EXPENSES) {
+      const vId = testingVendorIds[exp.vendor]
+      if (!vId) {
+        purchaseLog.push({ ref: exp.ref, status: 'skipped (vendor missing)', vendor: exp.vendor })
+        continue
+      }
+      try {
+        const pur = await createExpensePurchase(realmId, token, {
+          date: today,
+          amount: exp.amount,
+          paymentAccountId: dueToOwnerAcct.Id,
+          vendorId: vId,
+          accountId: testingCostsAcct.Id,
+          memo: exp.memo,
+          refNo: exp.ref,
+        })
+        purchaseLog.push({ ref: exp.ref, status: 'created', id: pur?.Id, amount: exp.amount, vendor: exp.vendor })
+      } catch (e) {
+        purchaseLog.push({ ref: exp.ref, status: 'error', error: e?.message || String(e), vendor: exp.vendor })
+      }
+    }
+    log.push({ step: 'testing-purchases', count: purchaseLog.filter(p => p.status === 'created').length, results: purchaseLog })
+
+    return NextResponse.json({
+      ok: true,
+      mode: 'execute',
+      testingOnly: true,
+      summary: {
+        accounts: Object.keys(accountIds).length,
+        vendors: Object.keys(testingVendorIds).length,
+        equity_deposit_id: null,
+        purchases_created: purchaseLog.filter(p => p.status === 'created').length,
+        purchases_failed: purchaseLog.filter(p => p.status === 'error').length,
+      },
       log,
     })
   }
