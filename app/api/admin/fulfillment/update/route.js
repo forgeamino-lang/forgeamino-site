@@ -3,7 +3,7 @@ import { requireAdmin } from '../../../../../lib/adminAuth'
 import { createServerClient } from '../../../../../lib/supabase'
 
 // PATCH /api/admin/fulfillment/update?key=ADMIN_PASSWORD
-// Body: { id, payment_status?, claimed_by?, fulfillment_status?, tracking_number? }
+// Body: { id, payment_status?, claimed_by?, fulfillment_status?, tracking_number?, notes? }
 //
 // Whitelist what columns can be patched, and auto-stamp the *_at timestamps when
 // the matching status field flips. This is the only write the UI does to orders.
@@ -22,7 +22,7 @@ export async function PATCH(request) {
   if (!body || typeof body !== 'object' || !body.id) {
     return NextResponse.json({ error: 'Body must be { id, ...patch }' }, { status: 400 })
   }
-  const { id, payment_status, claimed_by, fulfillment_status, tracking_number } = body
+  const { id, payment_status, claimed_by, fulfillment_status, tracking_number, notes } = body
 
   const patch = {}
   const now = new Date().toISOString()
@@ -53,6 +53,16 @@ export async function PATCH(request) {
   if (tracking_number !== undefined) {
     patch.tracking_number = tracking_number === '' ? null : String(tracking_number).trim()
   }
+  if (notes !== undefined) {
+    // Allow empty string -> null clear. Cap length at 2000 chars to keep rows sane.
+    if (notes === null || notes === '') {
+      patch.notes = null
+    } else if (typeof notes === 'string') {
+      patch.notes = notes.length > 2000 ? notes.slice(0, 2000) : notes
+    } else {
+      return NextResponse.json({ error: 'notes must be a string' }, { status: 400 })
+    }
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -63,7 +73,7 @@ export async function PATCH(request) {
     .from('orders')
     .update(patch)
     .eq('id', id)
-    .select('id, payment_status, claimed_by, claimed_at, fulfillment_status, shipped_at, delivered_at, tracking_number')
+    .select('id, payment_status, claimed_by, claimed_at, fulfillment_status, shipped_at, delivered_at, tracking_number, notes')
     .single()
 
   if (error) {

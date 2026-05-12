@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v12 · 2026-05-06 (invoice + email)'
+const PAGE_VERSION = 'v13 · 2026-05-11 (notes column)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -460,7 +460,7 @@ export default function FulfillmentPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
-        <table className="w-full text-sm min-w-[1300px]">
+        <table className="w-full text-sm min-w-[1500px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 text-left">
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Claimed by</th>
@@ -475,11 +475,12 @@ export default function FulfillmentPage() {
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Aff.</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Paid</th>
               <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
+              <th className="px-3 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Notes</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={12} className="text-center py-12 text-gray-400 text-sm">No orders match this filter</td></tr>
+              <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">No orders match this filter</td></tr>
             )}
             {filtered.map(order => {
               const saving = savingIds.has(order.id)
@@ -550,6 +551,22 @@ export default function FulfillmentPage() {
                     >
                       {FULFILLMENT_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <textarea
+                      key={`notes-${order.id}-${order.notes ?? ''}`}
+                      defaultValue={order.notes || ''}
+                      rows={2}
+                      maxLength={2000}
+                      placeholder="Add a note…"
+                      onBlur={e => {
+                        const v = e.target.value
+                        if (v !== (order.notes || '')) {
+                          patchOrder(order.id, { notes: v.trim() === '' ? null : v })
+                        }
+                      }}
+                      className="text-xs border border-gray-200 rounded px-2 py-1 w-56 bg-white focus:outline-none focus:border-[#2196f3] resize-y"
+                    />
                   </td>
                 </tr>
               )
