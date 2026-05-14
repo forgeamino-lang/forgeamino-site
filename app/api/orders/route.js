@@ -141,14 +141,15 @@ export async function POST(request) {
     // sticky — repeat customers don't get the discount automatically.
     let server_discount_amount = 0
     let server_subtotal_before_discount = server_subtotal
-    let server_subtotal_after_discount = server_subtotal
+    let final_subtotal     = server_subtotal
+    let final_tax_amount   = server_tax_amount
+    let final_total        = server_total
     if (attribution_source === 'form' && form_discount_pct > 0) {
       server_discount_amount = Number((server_subtotal * form_discount_pct).toFixed(2))
-      server_subtotal_after_discount = Number((server_subtotal - server_discount_amount).toFixed(2))
+      final_subtotal   = Number((server_subtotal - server_discount_amount).toFixed(2))
       // Recompute tax on the discounted subtotal (standard sales-tax treatment).
-      const recomputedTax = Number((server_subtotal_after_discount * trusted_tax_rate).toFixed(2))
-      server_tax_amount = recomputedTax
-      server_total = Number((server_subtotal_after_discount + server_tax_amount + server_shipping_amount).toFixed(2))
+      final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
+      final_total      = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
     }
 
     // Insert order into database
@@ -161,15 +162,14 @@ export async function POST(request) {
         customer_phone,
         shipping_address: {
           ...shipping_address_with_tax,
-          // After-discount values for downstream consumers
-          subtotal: server_subtotal_after_discount,
-          tax_amount: server_tax_amount,
+          subtotal: final_subtotal,
+          tax_amount: final_tax_amount,
           discount_amount: server_discount_amount,
           subtotal_before_discount: server_subtotal_before_discount,
         },
         payment_method,
         line_items: validated_line_items,
-        total: server_total,
+        total: final_total,
         payment_status: 'pending',
         fulfillment_status: 'pending',
         affiliate_code: affiliate_code_clean,
