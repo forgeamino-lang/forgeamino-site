@@ -85,15 +85,28 @@ export default function CheckoutPage() {
     return () => clearTimeout(timer)
   }, [form.zip, form.state, form.city])
 
-  // Live affiliate code preview — debounced lookup so the cart can show the
-  // discount line (e.g. FRIENDS = 10% off) as soon as the customer types it.
+  // Live affiliate code preview — debounced POST so cost-based codes (OWNERS)
+  // can validate against the customer email + cart, and percent-based codes
+  // (FRIENDS) still work for non-logged-in customers.
   useEffect(() => {
     const raw = (form.affiliateCode || '').trim()
     if (!raw) { setAffPreview(null); setAffLoading(false); return }
     setAffLoading(true)
     const timer = setTimeout(async () => {
       try {
-        const r = await fetch('/api/affiliate/preview?code=' + encodeURIComponent(raw), { cache: 'no-store' })
+        const r = await fetch('/api/affiliate/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify({
+            code: raw,
+            email: form.email,
+            line_items: cart.map(i => ({
+              id: i.id, slug: i.slug, name: i.name, qbo_name: i.qbo_name,
+              price: i.price, quantity: i.quantity,
+            })),
+          }),
+        })
         const j = await r.json()
         setAffPreview(j?.valid ? j : { valid: false })
       } catch {
@@ -103,13 +116,15 @@ export default function CheckoutPage() {
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [form.affiliateCode])
+  }, [form.affiliateCode, form.email, cart])
 
   const combinedRate = taxData ? parseFloat(taxData.combined_rate) : 0
-  // Customer-facing discount: applied to the product subtotal only when the
-  // affiliate code resolves to an active discount-enabled code (e.g. FRIENDS).
+  // Customer-facing discount: server returns either a discount_pct (FRIENDS-style)
+  // or a discount_amount in dollars (OWNERS-style cost-pricing).
   const discountPct    = affPreview?.valid && affPreview.discount_pct > 0 ? affPreview.discount_pct : 0
-  const discountAmount = Math.round(cartTotal * discountPct * 100) / 100
+  const discountFromPct = Math.round(cartTotal * discountPct * 100) / 100
+  const discountFromAmt = affPreview?.valid && Number(affPreview.discount_amount) > 0 ? Number(affPreview.discount_amount) : 0
+  const discountAmount = Math.max(discountFromPct, discountFromAmt)   // server returns ONE of them
   const subtotalAfter  = Math.max(0, cartTotal - discountAmount)
   const taxAmount      = Math.round(subtotalAfter * combinedRate * 100) / 100
   // Shipping is computed in lib/shipping so the rule lives in exactly one place.
@@ -419,11 +434,12 @@ export default function CheckoutPage() {
                     <span className="animate-pulse">—</span>
                   </div>
                 )}
-                {affPreview?.valid && discountPct > 0 && (
+                {affPreview?.valid && discountAmount > 0 && (
                   <>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-green-700 font-medium">
-                        {affPreview.code || form.affiliateCode.trim().toUpperCase()} discount ({(discountPct * 100).toFixed(0)}% off)
+                        {affPreview.code || form.affiliateCode.trim().toUpperCase()} discount
+                        {discountPct > 0 ? ` (${(discountPct * 100).toFixed(0)}% off)` : (affPreview.discount_to_cost ? ` (cost pricing)` : '')}
                       </span>
                       <span className="text-green-700 font-medium">−${discountAmount.toFixed(2)}</span>
                     </div>

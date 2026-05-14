@@ -111,6 +111,8 @@ export async function POST(request) {
     // Also pull discount_pct so we can apply customer-facing discounts
     // (e.g., FRIENDS = 10% off) when the code is ACTIVELY typed at checkout.
     let form_discount_pct = 0
+    let form_discount_to_cost = false
+    let form_email_whitelist = null
     if (attribution_source === 'none' && typeof affiliate_code === 'string') {
       const trimmed = affiliate_code.trim()
       if (trimmed.length > 0) {
@@ -118,7 +120,7 @@ export async function POST(request) {
         try {
           const { data: aff } = await supabase
             .from('affiliates')
-            .select('id, code, discount_pct')
+            .select('id, code, discount_pct, discount_to_cost, email_whitelist')
             .ilike('code', trimmed)
             .eq('active', true)
             .maybeSingle()
@@ -127,7 +129,9 @@ export async function POST(request) {
             affiliate_code_clean = aff.code
             attribution_source = 'form'
             should_write_attribution = !!email_lower
-            form_discount_pct = Number(aff.discount_pct || 0)
+            form_discount_pct      = Number(aff.discount_pct || 0)
+            form_discount_to_cost  = !!aff.discount_to_cost
+            form_email_whitelist   = Array.isArray(aff.email_whitelist) ? aff.email_whitelist.map(s => String(s).toLowerCase()) : null
           }
         } catch (lookupErr) {
           console.error('Affiliate lookup failed:', lookupErr)
@@ -137,19 +141,61 @@ export async function POST(request) {
 
     // ── Apply customer-facing discount (if any) ────────────────────────────
     // Only applies when the code was ACTIVELY typed on THIS order (not from
-    // sticky attribution). Per the product rule, discount is per-order, not
-    // sticky — repeat customers don't get the discount automatically.
+    // sticky attribution). Per-order rule: discount is NOT sticky across orders.
+    //
+    // If the affiliate has an email_whitelist, the customer email must be in
+    // it (case-insensitive). Otherwise the discount is silently rejected and
+    // the order proceeds at retail. This protects cost-pricing leakage.
     let server_discount_amount = 0
     let server_subtotal_before_discount = server_subtotal
     let final_subtotal     = server_subtotal
     let final_tax_amount   = server_tax_amount
     let final_total        = server_total
-    if (attribution_source === 'form' && form_discount_pct > 0) {
-      server_discount_amount = Number((server_subtotal * form_discount_pct).toFixed(2))
-      final_subtotal   = Number((server_subtotal - server_discount_amount).toFixed(2))
-      // Recompute tax on the discounted subtotal (standard sales-tax treatment).
-      final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
-      final_total      = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+
+    if (attribution_source === 'form') {
+      const whitelist_ok = !form_email_whitelist || (email_lower && form_email_whitelist.includes(email_lower))
+
+      // Cost-based discount (OWNERS): pay QBO PurchaseCost instead of retail.
+      // Sum per-line (qty * (price - cost)), clamped to >= 0. Items without
+      // a positive cost contribute 0 (no discount on that line).
+      if (whitelist_ok && form_discount_to_cost) {
+        try {
+          const { getAccessToken, fetchQboItems } = await import('../../../lib/quickbooks')
+          const realmId = process.env.QBO_REALM_ID
+          if (realmId) {
+            const token = await getAccessToken()
+            const itemsByName = await fetchQboItems(token, realmId)
+            let total_disc = 0
+            for (const li of validated_line_items) {
+              const name = li.qbo_name || li.name
+              const qboItem = itemsByName.get(name)
+              const cost = Number(qboItem?.PurchaseCost || 0)
+              const price = Number(li.price || 0)
+              const qty = Number(li.quantity || 0)
+              if (cost > 0) {
+                total_disc += Math.max(0, qty * (price - cost))
+              }
+            }
+            server_discount_amount = Number(total_disc.toFixed(2))
+          }
+        } catch (e) {
+          console.error('OWNERS cost-discount calculation failed:', e?.message || e)
+          // Silent fallback: no discount applied, order proceeds at retail
+          server_discount_amount = 0
+        }
+      }
+
+      // Percent-based discount (FRIENDS): straight percentage off subtotal.
+      else if (whitelist_ok && form_discount_pct > 0) {
+        server_discount_amount = Number((server_subtotal * form_discount_pct).toFixed(2))
+      }
+
+      if (server_discount_amount > 0) {
+        final_subtotal   = Number((server_subtotal - server_discount_amount).toFixed(2))
+        // Recompute tax on the discounted subtotal (standard sales-tax treatment).
+        final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
+        final_total      = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+      }
     }
 
     // Insert order into database
