@@ -107,7 +107,10 @@ export async function POST(request) {
       }
     }
 
-    // Step 2 — if not locked, fall back to the form-typed code (and resolve it)
+    // Step 2 — if not locked, fall back to the form-typed code (and resolve it).
+    // Also pull discount_pct so we can apply customer-facing discounts
+    // (e.g., FRIENDS = 10% off) when the code is ACTIVELY typed at checkout.
+    let form_discount_pct = 0
     if (attribution_source === 'none' && typeof affiliate_code === 'string') {
       const trimmed = affiliate_code.trim()
       if (trimmed.length > 0) {
@@ -115,21 +118,37 @@ export async function POST(request) {
         try {
           const { data: aff } = await supabase
             .from('affiliates')
-            .select('id, code')
+            .select('id, code, discount_pct')
             .ilike('code', trimmed)
             .eq('active', true)
             .maybeSingle()
           if (aff) {
             affiliate_id = aff.id
-            // Persist the cleanly-cased code so future lookups match exactly
             affiliate_code_clean = aff.code
             attribution_source = 'form'
             should_write_attribution = !!email_lower
+            form_discount_pct = Number(aff.discount_pct || 0)
           }
         } catch (lookupErr) {
           console.error('Affiliate lookup failed:', lookupErr)
         }
       }
+    }
+
+    // ── Apply customer-facing discount (if any) ────────────────────────────
+    // Only applies when the code was ACTIVELY typed on THIS order (not from
+    // sticky attribution). Per the product rule, discount is per-order, not
+    // sticky — repeat customers don't get the discount automatically.
+    let server_discount_amount = 0
+    let server_subtotal_before_discount = server_subtotal
+    let server_subtotal_after_discount = server_subtotal
+    if (attribution_source === 'form' && form_discount_pct > 0) {
+      server_discount_amount = Number((server_subtotal * form_discount_pct).toFixed(2))
+      server_subtotal_after_discount = Number((server_subtotal - server_discount_amount).toFixed(2))
+      // Recompute tax on the discounted subtotal (standard sales-tax treatment).
+      const recomputedTax = Number((server_subtotal_after_discount * trusted_tax_rate).toFixed(2))
+      server_tax_amount = recomputedTax
+      server_total = Number((server_subtotal_after_discount + server_tax_amount + server_shipping_amount).toFixed(2))
     }
 
     // Insert order into database
@@ -140,7 +159,14 @@ export async function POST(request) {
         customer_name,
         customer_email,
         customer_phone,
-        shipping_address: shipping_address_with_tax,
+        shipping_address: {
+          ...shipping_address_with_tax,
+          // After-discount values for downstream consumers
+          subtotal: server_subtotal_after_discount,
+          tax_amount: server_tax_amount,
+          discount_amount: server_discount_amount,
+          subtotal_before_discount: server_subtotal_before_discount,
+        },
         payment_method,
         line_items: validated_line_items,
         total: server_total,
@@ -148,6 +174,8 @@ export async function POST(request) {
         fulfillment_status: 'pending',
         affiliate_code: affiliate_code_clean,
         affiliate_id,
+        discount_amount: server_discount_amount,
+        subtotal_before_discount: server_subtotal_before_discount,
       })
       .select('id')
       .single()

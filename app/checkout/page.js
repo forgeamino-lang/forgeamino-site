@@ -57,6 +57,8 @@ export default function CheckoutPage() {
   // Live tax rate from TaxJar (includes state + county + city)
   const [taxData, setTaxData] = useState(null)   // full TaxJar rate object
   const [taxLoading, setTaxLoading] = useState(false)
+  const [affPreview, setAffPreview] = useState(null)  // { valid, discount_pct, name } or null
+  const [affLoading, setAffLoading] = useState(false)
 
   useEffect(() => {
     // Need at least a 5-digit zip and a state to look up
@@ -83,12 +85,37 @@ export default function CheckoutPage() {
     return () => clearTimeout(timer)
   }, [form.zip, form.state, form.city])
 
+  // Live affiliate code preview — debounced lookup so the cart can show the
+  // discount line (e.g. FRIENDS = 10% off) as soon as the customer types it.
+  useEffect(() => {
+    const raw = (form.affiliateCode || '').trim()
+    if (!raw) { setAffPreview(null); setAffLoading(false); return }
+    setAffLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/affiliate/preview?code=' + encodeURIComponent(raw), { cache: 'no-store' })
+        const j = await r.json()
+        setAffPreview(j?.valid ? j : { valid: false })
+      } catch {
+        setAffPreview({ valid: false })
+      } finally {
+        setAffLoading(false)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [form.affiliateCode])
+
   const combinedRate = taxData ? parseFloat(taxData.combined_rate) : 0
-  const taxAmount    = Math.round(cartTotal * combinedRate * 100) / 100
+  // Customer-facing discount: applied to the product subtotal only when the
+  // affiliate code resolves to an active discount-enabled code (e.g. FRIENDS).
+  const discountPct    = affPreview?.valid && affPreview.discount_pct > 0 ? affPreview.discount_pct : 0
+  const discountAmount = Math.round(cartTotal * discountPct * 100) / 100
+  const subtotalAfter  = Math.max(0, cartTotal - discountAmount)
+  const taxAmount      = Math.round(subtotalAfter * combinedRate * 100) / 100
   // Shipping is computed in lib/shipping so the rule lives in exactly one place.
   // Tax base stays on subtotal only — shipping is not taxed.
   const shippingAmount = computeShipping(cartTotal, form.shippingMethod)
-  const orderTotal   = cartTotal + taxAmount + shippingAmount
+  const orderTotal     = subtotalAfter + taxAmount + shippingAmount
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -386,6 +413,30 @@ export default function CheckoutPage() {
                   <span>${cartTotal.toFixed(2)}</span>
                 </div>
 
+                {affLoading && form.affiliateCode.trim() && !affPreview && (
+                  <div className="flex justify-between items-center text-xs text-gray-400">
+                    <span>Checking code…</span>
+                    <span className="animate-pulse">—</span>
+                  </div>
+                )}
+                {affPreview?.valid && discountPct > 0 && (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-green-700 font-medium">
+                        {affPreview.code || form.affiliateCode.trim().toUpperCase()} discount ({(discountPct * 100).toFixed(0)}% off)
+                      </span>
+                      <span className="text-green-700 font-medium">−${discountAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-gray-600 font-medium pt-1">
+                      <span>Subtotal after discount</span>
+                      <span>${subtotalAfter.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
+                  <p className="text-xs text-gray-400">Affiliate code not recognized — order will proceed without a discount.</p>
+                )}
+
                 {/* Tax lines */}
                 {taxLoading ? (
                   <div className="flex justify-between items-center text-sm text-gray-400">
@@ -397,25 +448,25 @@ export default function CheckoutPage() {
                     {parseFloat(taxData.state_rate) > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
                         <span>{taxData.state} State ({(parseFloat(taxData.state_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
-                        <span>${(cartTotal * parseFloat(taxData.state_rate)).toFixed(2)}</span>
+                        <span>${(subtotalAfter * parseFloat(taxData.state_rate)).toFixed(2)}</span>
                       </div>
                     )}
                     {taxData.county && parseFloat(taxData.county_rate) > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
                         <span>{taxData.county} Co. ({(parseFloat(taxData.county_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
-                        <span>${(cartTotal * parseFloat(taxData.county_rate)).toFixed(2)}</span>
+                        <span>${(subtotalAfter * parseFloat(taxData.county_rate)).toFixed(2)}</span>
                       </div>
                     )}
                     {taxData.city && parseFloat(taxData.city_rate) > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
                         <span>{taxData.city} City ({(parseFloat(taxData.city_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
-                        <span>${(cartTotal * parseFloat(taxData.city_rate)).toFixed(2)}</span>
+                        <span>${(subtotalAfter * parseFloat(taxData.city_rate)).toFixed(2)}</span>
                       </div>
                     )}
                     {parseFloat(taxData.combined_district_rate) > 0 && (
                       <div className="flex justify-between items-center text-xs text-gray-500 pl-2">
                         <span>District ({(parseFloat(taxData.combined_district_rate) * 100).toFixed(2).replace(/\.00$/, '')}%)</span>
-                        <span>${(cartTotal * parseFloat(taxData.combined_district_rate)).toFixed(2)}</span>
+                        <span>${(subtotalAfter * parseFloat(taxData.combined_district_rate)).toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between items-center text-sm text-gray-600 font-medium pt-1">
