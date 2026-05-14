@@ -64,6 +64,14 @@ const PO_EXPENSES = [
   { ref: 'PO #13', vendor: 'Dangkang',    amount: 1000.00,  memo: 'PO #13 Dangkang — raw goods, paid personally via Wise; FA reimbursed' },
 ]
 
+// Subsequent raw-goods POs entered later (post the initial 13-PO backfill).
+// Same treatment: paid personally via Wise, FA reimbursed (Due to Owner — Sean),
+// posted Category Detail to Inventory Asset.
+const ADDITIONAL_POS = [
+  { ref: 'PO #14', vendor: 'GGB',    amount: 5180.00, memo: 'PO #14 GGB — raw goods, paid personally; FA reimbursed' },
+  { ref: 'PO #15', vendor: 'Andrew', amount: 4020.00, memo: 'PO #15 Andrew — raw goods, paid personally; FA reimbursed' },
+]
+
 // ── QBO REST helpers ──────────────────────────────────────────────────────
 async function qboFetch(realmId, token, path, opts = {}) {
   const url = `${BASE_URL}/v3/company/${realmId}${path}${path.includes('?') ? '&' : '?'}minorversion=65`
@@ -184,6 +192,15 @@ function buildOwnerLoanZeroPlan(amount) {
   }
 }
 
+function buildAdditionalPosPlan() {
+  return {
+    expenses: ADDITIONAL_POS,
+    total: Number(ADDITIONAL_POS.reduce((s, e) => s + e.amount, 0).toFixed(2)),
+    paymentAccount: 'Due to Owner — Sean (existing)',
+    debitAccount: 'Inventory Asset (existing)',
+  }
+}
+
 function buildTestingPlan() {
   return {
     accounts: [{ name: 'Testing Costs', type: 'Other Current Asset → OtherCurrentAssets', action: 'find-or-create on execute' }],
@@ -218,18 +235,20 @@ async function handle(request, { execute }) {
   if (unauthorized) return unauthorized
 
   const url = new URL(request.url)
-  const accountsOnly  = url.searchParams.get('accountsOnly') === '1'
-  const testingOnly   = url.searchParams.get('testingOnly')  === '1'
-  const ownerLoanZero = url.searchParams.get('ownerLoanZero') === '1'
-  const ownerLoanAmount = Number(url.searchParams.get('amount') || 66546.10)
+  const accountsOnly       = url.searchParams.get('accountsOnly') === '1'
+  const testingOnly        = url.searchParams.get('testingOnly')  === '1'
+  const ownerLoanZero      = url.searchParams.get('ownerLoanZero') === '1'
+  const additionalPosOnly  = url.searchParams.get('additionalPosOnly') === '1'
+  const ownerLoanAmount    = Number(url.searchParams.get('amount') || 66546.10)
 
   // Preview: return the static plan (no QBO calls — instant)
   if (!execute) {
     let plan
     if (ownerLoanZero) plan = buildOwnerLoanZeroPlan(ownerLoanAmount)
     else if (testingOnly) plan = buildTestingPlan()
+    else if (additionalPosOnly) plan = buildAdditionalPosPlan()
     else plan = buildStaticPlan()
-    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, testingOnly, ownerLoanZero, plan })
+    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, testingOnly, ownerLoanZero, additionalPosOnly, plan })
   }
 
   const realmId = process.env.QBO_REALM_ID
@@ -351,6 +370,62 @@ async function handle(request, { execute }) {
     } catch (e) {
       return NextResponse.json({ ok: false, error: e?.message || String(e), log }, { status: 500 })
     }
+  }
+
+  // ── Additional raw-goods POs (PO #14, #15, etc.) ───────────────────────
+  if (additionalPosOnly) {
+    const inventoryAsset = await findAccountByName(realmId, token, 'Inventory Asset')
+    const dueToOwner     = await findAccountByName(realmId, token, 'Due to Owner — Sean')
+    if (!inventoryAsset) return NextResponse.json({ ok: false, error: 'Inventory Asset account not found', log }, { status: 500 })
+    if (!dueToOwner)     return NextResponse.json({ ok: false, error: 'Due to Owner — Sean account not found — run ?accountsOnly=1 first', log }, { status: 500 })
+
+    // Ensure each vendor exists (uses existing find-or-create)
+    const newPoVendorIds = {}
+    for (const po of ADDITIONAL_POS) {
+      if (newPoVendorIds[po.vendor]) continue
+      const existing = await findVendorByName(realmId, token, po.vendor)
+      if (existing) {
+        newPoVendorIds[po.vendor] = existing.Id
+        log.push({ step: 'vendor', name: po.vendor, action: 'reused', id: existing.Id })
+      } else {
+        const created = await createVendor(realmId, token, po.vendor)
+        newPoVendorIds[po.vendor] = created.Id
+        log.push({ step: 'vendor', name: po.vendor, action: 'created', id: created.Id })
+      }
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const purchaseLog = []
+    for (const po of ADDITIONAL_POS) {
+      const vId = newPoVendorIds[po.vendor]
+      try {
+        const pur = await createExpensePurchase(realmId, token, {
+          date: today,
+          amount: po.amount,
+          paymentAccountId: dueToOwner.Id,
+          vendorId: vId,
+          accountId: inventoryAsset.Id,
+          memo: po.memo,
+          refNo: po.ref,
+        })
+        purchaseLog.push({ ref: po.ref, status: 'created', id: pur?.Id, amount: po.amount, vendor: po.vendor })
+      } catch (e) {
+        purchaseLog.push({ ref: po.ref, status: 'error', error: e?.message || String(e), vendor: po.vendor })
+      }
+    }
+    log.push({ step: 'additional-pos', count: purchaseLog.filter(p => p.status === 'created').length, results: purchaseLog })
+
+    return NextResponse.json({
+      ok: true,
+      mode: 'execute',
+      additionalPosOnly: true,
+      summary: {
+        purchases_created: purchaseLog.filter(p => p.status === 'created').length,
+        purchases_failed: purchaseLog.filter(p => p.status === 'error').length,
+        total_posted: purchaseLog.filter(p => p.status === 'created').reduce((s, p) => s + p.amount, 0),
+      },
+      log,
+    })
   }
 
   const inventoryAsset = await findAccountByName(realmId, token, 'Inventory Asset')
