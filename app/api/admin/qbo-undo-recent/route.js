@@ -69,6 +69,20 @@ async function deleteEntity(realmId, token, entity, obj) {
   return j
 }
 
+async function listRecent(realmId, token, entity, limit) {
+  // QBO doesn't support ORDER BY MetaData.CreateTime, so pull a chunk and sort client-side.
+  // Use a generous LIMIT, then sort by CreateTime DESC, take top N.
+  const q = `SELECT * FROM ${entity} MAXRESULTS 100`
+  const j = await qboFetch(realmId, token, `/query?query=${encodeURIComponent(q)}`)
+  const rows = j?.QueryResponse?.[entity] || []
+  rows.sort((a, b) => {
+    const ta = a?.MetaData?.CreateTime || ''
+    const tb = b?.MetaData?.CreateTime || ''
+    return tb.localeCompare(ta)
+  })
+  return rows.slice(0, limit)
+}
+
 async function handle(request, { execute }) {
   const unauthorized = requireAdmin(request)
   if (unauthorized) return unauthorized
@@ -77,11 +91,46 @@ async function handle(request, { execute }) {
   const token = await getAccessToken()
 
   const url = new URL(request.url)
+  const recent = Number(url.searchParams.get('recent') || 0)
+
+  // Recent-listing mode (GET-only — never deletes)
+  if (recent > 0 && !execute) {
+    const [purchases, deposits, journals] = await Promise.all([
+      listRecent(realmId, token, 'Purchase', recent),
+      listRecent(realmId, token, 'Deposit', Math.min(recent, 20)),
+      listRecent(realmId, token, 'JournalEntry', Math.min(recent, 20)),
+    ])
+    return NextResponse.json({
+      ok: true,
+      mode: 'recent',
+      purchases: purchases.map(p => ({
+        id: p.Id,
+        doc_number: p.DocNumber || null,
+        total: p.TotalAmt,
+        vendor: p.EntityRef?.name || null,
+        create_time: p.MetaData?.CreateTime,
+        private_note: p.PrivateNote || null,
+      })),
+      deposits: deposits.map(d => ({
+        id: d.Id,
+        total: d.TotalAmt,
+        create_time: d.MetaData?.CreateTime,
+        private_note: d.PrivateNote || null,
+      })),
+      journals: journals.map(j => ({
+        id: j.Id,
+        total: j.TotalAmt,
+        create_time: j.MetaData?.CreateTime,
+        private_note: j.PrivateNote || null,
+      })),
+    })
+  }
+
   const purchaseIds = parseIdRange(url.searchParams.get('purchaseIds') || url.searchParams.get('purchaseIdRange') || '')
   const depositIds  = parseIdRange(url.searchParams.get('depositIds') || '')
 
   if (!purchaseIds.length && !depositIds.length) {
-    return NextResponse.json({ ok: false, error: 'Provide purchaseIds, purchaseIdRange, or depositIds.' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: 'Provide purchaseIds, purchaseIdRange, depositIds, or ?recent=N.' }, { status: 400 })
   }
 
   // Inspect first
