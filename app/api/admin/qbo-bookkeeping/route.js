@@ -23,6 +23,7 @@ const ACCOUNTS = [
   { name: 'Compounded Goods Cost', AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
   { name: 'Testing Costs',         AccountType: 'Other Current Asset',     AccountSubType: 'OtherCurrentAssets' },
   { name: 'Operating Account',     AccountType: 'Bank',                    AccountSubType: 'CashOnHand' },
+  { name: 'Inventory Setup Adjustments', AccountType: 'Equity',            AccountSubType: 'OwnersEquity' },
 ]
 
 // Testing-lab vendors + expenses (BT Labs + Freedom Diagnostics).
@@ -235,11 +236,13 @@ async function handle(request, { execute }) {
   if (unauthorized) return unauthorized
 
   const url = new URL(request.url)
-  const accountsOnly       = url.searchParams.get('accountsOnly') === '1'
-  const testingOnly        = url.searchParams.get('testingOnly')  === '1'
-  const ownerLoanZero      = url.searchParams.get('ownerLoanZero') === '1'
-  const additionalPosOnly  = url.searchParams.get('additionalPosOnly') === '1'
-  const ownerLoanAmount    = Number(url.searchParams.get('amount') || 66546.10)
+  const accountsOnly               = url.searchParams.get('accountsOnly') === '1'
+  const testingOnly                = url.searchParams.get('testingOnly')  === '1'
+  const ownerLoanZero              = url.searchParams.get('ownerLoanZero') === '1'
+  const additionalPosOnly          = url.searchParams.get('additionalPosOnly') === '1'
+  const inventoryShrinkageCleanup  = url.searchParams.get('inventoryShrinkageCleanup') === '1'
+  const ownerLoanAmount            = Number(url.searchParams.get('amount') || 66546.10)
+  const shrinkageAmount            = Number(url.searchParams.get('amount') || 0)
 
   // Preview: return the static plan (no QBO calls — instant)
   if (!execute) {
@@ -247,8 +250,30 @@ async function handle(request, { execute }) {
     if (ownerLoanZero) plan = buildOwnerLoanZeroPlan(ownerLoanAmount)
     else if (testingOnly) plan = buildTestingPlan()
     else if (additionalPosOnly) plan = buildAdditionalPosPlan()
+    else if (inventoryShrinkageCleanup) {
+      // Live query for the Shrinkage balance so preview shows the real number
+      try {
+        const realmId = process.env.QBO_REALM_ID
+        const token = await getAccessToken()
+        const shrinkage = await findAccountByName(realmId, token, 'Inventory Shrinkage')
+        plan = {
+          target_account: 'Inventory Shrinkage',
+          found: !!shrinkage,
+          current_balance: shrinkage?.CurrentBalance ?? null,
+          account_subtype: shrinkage?.AccountSubType ?? null,
+          new_account: 'Inventory Setup Adjustments (Equity → OwnersEquity)',
+          journal_entry: {
+            debit: 'Inventory Shrinkage  (zeros out the false expense)',
+            credit: 'Inventory Setup Adjustments  (parks the true-up on the balance sheet)',
+            amount: 'pass via ?amount=NN.NN on execute',
+          },
+        }
+      } catch (e) {
+        plan = { error: e.message }
+      }
+    }
     else plan = buildStaticPlan()
-    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, testingOnly, ownerLoanZero, additionalPosOnly, plan })
+    return NextResponse.json({ ok: true, mode: 'preview', accountsOnly, testingOnly, ownerLoanZero, additionalPosOnly, inventoryShrinkageCleanup, plan })
   }
 
   const realmId = process.env.QBO_REALM_ID
@@ -426,6 +451,40 @@ async function handle(request, { execute }) {
       },
       log,
     })
+  }
+
+  // ── Inventory Shrinkage reclassification (single JE) ───────────────────
+  if (inventoryShrinkageCleanup) {
+    if (!shrinkageAmount || shrinkageAmount <= 0) {
+      return NextResponse.json({ ok: false, error: 'Provide ?amount=NN.NN with the Inventory Shrinkage balance to reclassify.', log }, { status: 400 })
+    }
+    const shrinkageAcct = await findAccountByName(realmId, token, 'Inventory Shrinkage')
+    const setupAdjAcct  = await findAccountByName(realmId, token, 'Inventory Setup Adjustments')
+    if (!shrinkageAcct)  return NextResponse.json({ ok: false, error: 'Inventory Shrinkage account not found in QBO.', log }, { status: 404 })
+    if (!setupAdjAcct)   return NextResponse.json({ ok: false, error: 'Inventory Setup Adjustments account missing — run ?accountsOnly=1 first.', log }, { status: 500 })
+
+    try {
+      const je = await createJournalEntry(realmId, token, {
+        date: new Date().toISOString().slice(0, 10),
+        memo: `Reclassify Inventory Shrinkage expense ($${shrinkageAmount.toFixed(2)}) to Inventory Setup Adjustments — historical entries were inventory-setup true-ups, not actual shrinkage.`,
+        lines: [
+          // Debit shrinkage to zero out the expense
+          { amount: shrinkageAmount, accountId: shrinkageAcct.Id, postingType: 'Debit',  description: 'Zero out non-shrinkage adjustments wrongly booked here' },
+          // Credit the equity true-up account
+          { amount: shrinkageAmount, accountId: setupAdjAcct.Id,  postingType: 'Credit', description: 'Historical inventory true-up reclassification' },
+        ],
+      })
+      log.push({ step: 'journal-entry', purpose: 'reclassify shrinkage', amount: shrinkageAmount, id: je?.Id })
+      return NextResponse.json({
+        ok: true,
+        mode: 'execute',
+        inventoryShrinkageCleanup: true,
+        summary: { journalEntryId: je?.Id, amountReclassified: shrinkageAmount },
+        log,
+      })
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: e.message, log }, { status: 500 })
+    }
   }
 
   const inventoryAsset = await findAccountByName(realmId, token, 'Inventory Asset')
