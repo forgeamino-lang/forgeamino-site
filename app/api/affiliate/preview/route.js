@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '../../../../lib/supabase'
 import { getAccessToken, fetchQboItems } from '../../../../lib/quickbooks'
+import { getProductBySlug } from '../../../../lib/products'
 
 // /api/affiliate/preview
 //
@@ -42,6 +43,11 @@ function isEmailAllowed(aff, email) {
 async function computeCostDiscount(line_items) {
   // Sum line discounts where line_discount = qty * (price - cost), clamped to >=0.
   // Items without a positive cost contribute 0 (i.e., paid at retail).
+  //
+  // CRITICAL: resolve qbo_name from the catalog (lib/products.js) using the
+  // line's slug, NOT from whatever the cart sent. The cart historically did
+  // not carry qbo_name, so for lab products + items with QBO name overrides
+  // (e.g., Wolverine Blend) we'd miss the cost lookup and apply $0 discount.
   const realmId = process.env.QBO_REALM_ID
   if (!realmId) throw new Error('QBO_REALM_ID not set')
   const token = await getAccessToken()
@@ -50,14 +56,17 @@ async function computeCostDiscount(line_items) {
   let total_discount = 0
   const per_line = []
   for (const li of (line_items || [])) {
-    const name = li.qbo_name || li.name || ''
-    const qboItem = itemsByName.get(name)
+    // Catalog is source of truth for qbo_name
+    const cat = li.slug ? getProductBySlug(li.slug) : null
+    const lookupName = (cat && (cat.qbo_name || cat.name)) || li.qbo_name || li.name || ''
+    const qboItem = itemsByName.get(lookupName)
     const cost = Number(qboItem?.PurchaseCost || 0)
-    const price = Number(li.price || 0)
+    // Use catalog price too, so the client can't game it
+    const price = Number(cat?.price ?? li.price ?? 0)
     const qty   = Number(li.quantity || 0)
     const line_disc = cost > 0 ? Math.max(0, qty * (price - cost)) : 0
     total_discount += line_disc
-    per_line.push({ name, qty, price, cost, line_discount: Number(line_disc.toFixed(2)) })
+    per_line.push({ name: lookupName, qty, price, cost, line_discount: Number(line_disc.toFixed(2)) })
   }
   return { discount_amount: Number(total_discount.toFixed(2)), per_line }
 }

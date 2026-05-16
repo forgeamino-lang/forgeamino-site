@@ -13,6 +13,7 @@ export default function AddToCartButton({ product }) {
       id: product.id,
       slug: product.slug,
       name: product.name,
+      qbo_name: product.qbo_name || product.name,
       price: product.price,
       image: product.image,
     })
