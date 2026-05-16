@@ -139,6 +139,37 @@ export async function POST(request) {
       }
     }
 
+    // ── If sticky-locked, populate discount fields from affiliates table ───
+    //    Step 1 only fetched code+id from the attribution table; we need
+    //    discount_pct, discount_to_cost, and email_whitelist to decide whether
+    //    to apply when the customer actively re-types the same code.
+    if (attribution_source === 'locked' && affiliate_id) {
+      try {
+        const { data: aff } = await supabase
+          .from('affiliates')
+          .select('discount_pct, discount_to_cost, email_whitelist')
+          .eq('id', affiliate_id)
+          .maybeSingle()
+        if (aff) {
+          form_discount_pct = Number(aff.discount_pct || 0)
+          form_discount_to_cost = !!aff.discount_to_cost
+          form_email_whitelist = Array.isArray(aff.email_whitelist)
+            ? aff.email_whitelist.map(v => String(v).toLowerCase())
+            : null
+        }
+      } catch (e) {
+        console.error('Sticky-locked affiliate discount lookup failed:', e?.message || e)
+      }
+    }
+
+    // Did the customer ACTIVELY type a code on THIS order that matches the
+    // resolved code? (Either typed it for the first time, or re-typed the
+    // same code their email is locked to.) This is the discount-eligibility
+    // signal — not attribution_source alone.
+    const form_typed_raw = typeof affiliate_code === 'string' ? affiliate_code.trim() : ''
+    const form_code_typed_matches = form_typed_raw.length > 0 && affiliate_code_clean &&
+      form_typed_raw.toLowerCase() === affiliate_code_clean.toLowerCase()
+
     // ── Apply customer-facing discount (if any) ────────────────────────────
     // Only applies when the code was ACTIVELY typed on THIS order (not from
     // sticky attribution). Per-order rule: discount is NOT sticky across orders.
@@ -152,7 +183,7 @@ export async function POST(request) {
     let final_tax_amount   = server_tax_amount
     let final_total        = server_total
 
-    if (attribution_source === 'form') {
+    if (attribution_source === 'form' || (attribution_source === 'locked' && form_code_typed_matches)) {
       const whitelist_ok = !form_email_whitelist || (email_lower && form_email_whitelist.includes(email_lower))
 
       // Cost-based discount (OWNERS): pay QBO PurchaseCost instead of retail.
