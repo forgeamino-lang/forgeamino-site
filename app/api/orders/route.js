@@ -265,16 +265,28 @@ export async function POST(request) {
       order_number,
       customer_name,
       customer_email,
-      shipping_address: shipping_address_with_tax,
+      // Embed AFTER-discount totals + discount fields so email + QBO sync
+      // both see the right numbers. Without these overrides, downstream
+      // builds (confirmation email subtotal/tax/total + QBO invoice line
+      // items + discount line) silently used the pre-discount values.
+      shipping_address: {
+        ...shipping_address_with_tax,
+        subtotal: final_subtotal,
+        tax_amount: final_tax_amount,
+        discount_amount: server_discount_amount,
+        subtotal_before_discount: server_subtotal_before_discount,
+      },
       payment_method,
       line_items: validated_line_items,
-      subtotal: server_subtotal,
-      tax_amount: server_tax_amount,
+      subtotal: final_subtotal,
+      tax_amount: final_tax_amount,
       tax_rate: trusted_tax_rate,
       shipping_method: trusted_shipping_method,
       shipping_amount: server_shipping_amount,
-      total: server_total,
+      total: final_total,
       affiliate_code: affiliate_code_clean,
+      discount_amount: server_discount_amount,
+      subtotal_before_discount: server_subtotal_before_discount,
     }
 
 // Fan out three independent side effects:
