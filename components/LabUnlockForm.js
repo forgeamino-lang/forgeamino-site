@@ -38,6 +38,9 @@ export default function LabUnlockForm() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
   const [restrictedBrowser, setRestrictedBrowser] = useState(null)
+  // Set when a code is ACCEPTED by the server but the fa_lab cookie did not
+  // survive (corporate network / managed device stripping or blocking it).
+  const [cookieBlocked, setCookieBlocked] = useState(false)
   const router = useRouter()
 
   // Detect restricted browser on mount. Wrapped so any failure here is silent
@@ -64,11 +67,13 @@ export default function LabUnlockForm() {
   async function onSubmit(e) {
     e.preventDefault()
     setErr('')
+    setCookieBlocked(false)
     setLoading(true)
     try {
       const r = await fetch('/api/lab/unlock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify({ code: code.trim() }),
       })
       if (!r.ok) {
@@ -77,8 +82,24 @@ export default function LabUnlockForm() {
         setLoading(false)
         return
       }
-      // Success: let the server re-render /lab with the cookie.
-      router.refresh()
+      // Code accepted. Before refreshing, confirm the cookie actually stuck —
+      // on locked-down corporate networks the Set-Cookie gets stripped, which
+      // would otherwise just bounce the user back to a blank form.
+      try {
+        const s = await fetch('/api/lab/status', { cache: 'no-store' })
+        const sj = await s.json().catch(() => ({}))
+        if (sj.unlocked) {
+          // Cookie persisted — let the server re-render /lab unlocked.
+          router.refresh()
+          return
+        }
+        // Code was valid but the unlock session didn't persist.
+        setCookieBlocked(true)
+        setLoading(false)
+      } catch {
+        // Status check itself failed — fall back to a plain refresh attempt.
+        router.refresh()
+      }
     } catch {
       setErr('Network error')
       setLoading(false)
@@ -98,6 +119,24 @@ export default function LabUnlockForm() {
             menu (<span className="font-mono">⋯</span> or <span className="font-mono">⋮</span>) and choose
             <span className="font-bold"> &ldquo;Open in Safari&rdquo;</span> or <span className="font-bold">&ldquo;Open in Chrome&rdquo;</span>,
             then enter your code there.
+          </p>
+        </div>
+      )}
+
+      {cookieBlocked && (
+        <div className="bg-amber-500/15 border border-amber-400/40 rounded-lg p-3 text-amber-100 text-xs leading-relaxed">
+          <div className="font-bold uppercase tracking-wider mb-1 text-amber-300">
+            ⚠ Your code is correct — but the unlock didn&rsquo;t stick
+          </div>
+          <p>
+            Your access code was accepted, but your browser or network didn&rsquo;t keep the unlock. This almost
+            always means a <span className="font-bold">company device or work network is blocking the cookie</span> the
+            lab uses to stay unlocked.
+          </p>
+          <p className="mt-2">
+            Try again on a <span className="font-bold">personal device</span>, or on your phone using
+            <span className="font-bold"> cellular data</span> instead of company / office Wi-Fi. The same code will
+            work — it never expires.
           </p>
         </div>
       )}

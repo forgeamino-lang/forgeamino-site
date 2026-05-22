@@ -34,7 +34,7 @@ export default function LabPage() {
           </p>
           <LabUnlockForm />
           <p className="text-[10px] text-gray-500 mt-6 leading-relaxed uppercase tracking-widest">
-            Session-only — unlock expires when you close the browser.
+            Your unlock stays active on this device for 12 hours.
           </p>
         </div>
       </div>

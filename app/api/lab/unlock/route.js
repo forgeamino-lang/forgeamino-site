@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server'
-import { createLabCookieValue, LAB_COOKIE_NAME } from '../../../../lib/labAuth'
+import { createLabCookieValue, LAB_COOKIE_NAME, labCookieOptions } from '../../../../lib/labAuth'
 
 export const dynamic = 'force-dynamic'
+
+// Every response is marked no-store so corporate / SSL-inspecting proxies
+// can't cache an unlock outcome (a cached "invalid" or a cached success
+// without the Set-Cookie would both break the flow for the next user).
+function noStore(res) {
+  res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  return res
+}
 
 // Structured log line -> picked up by Vercel runtime logs. We log first 2
 // chars of the attempted code so a brute-force prefix sweep is visible
@@ -27,12 +35,12 @@ function logUnlockAttempt(request, outcome, code) {
 
 export async function POST(request) {
   let body
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Bad request' }, { status: 400 }) }
+  try { body = await request.json() } catch { return noStore(NextResponse.json({ error: 'Bad request' }, { status: 400 })) }
 
   const code = typeof body?.code === 'string' ? body.code.trim() : ''
   if (!code) {
     logUnlockAttempt(request, 'empty_code', '')
-    return NextResponse.json({ error: 'Code required' }, { status: 400 })
+    return noStore(NextResponse.json({ error: 'Code required' }, { status: 400 }))
   }
 
   const codes = (process.env.LAB_CODES || '')
@@ -42,22 +50,16 @@ export async function POST(request) {
 
   if (!codes.length) {
     logUnlockAttempt(request, 'not_configured', code)
-    return NextResponse.json({ error: 'Lab not configured' }, { status: 503 })
+    return noStore(NextResponse.json({ error: 'Lab not configured' }, { status: 503 }))
   }
 
   if (!codes.includes(code)) {
     logUnlockAttempt(request, 'invalid', code)
-    return NextResponse.json({ error: 'Invalid code' }, { status: 401 })
+    return noStore(NextResponse.json({ error: 'Invalid code' }, { status: 401 }))
   }
 
   logUnlockAttempt(request, 'success', code)
-  const res = NextResponse.json({ ok: true })
-  res.cookies.set(LAB_COOKIE_NAME, createLabCookieValue(), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    // No maxAge / expires  ->  session cookie; cleared on browser close.
-  })
+  const res = noStore(NextResponse.json({ ok: true }))
+  res.cookies.set(LAB_COOKIE_NAME, createLabCookieValue(), labCookieOptions(request.headers.get('host')))
   return res
 }
