@@ -60,6 +60,14 @@ const nextConfig = {
         permanent: false,
       },
       {
+        // Stale Squarespace asset-hash variant of the MOT012601 COA URL
+        // (showed as a 404 in Search Console). Recover it to the local copy
+        // so any old QR codes / links keep resolving.
+        source: '/s/FA-MOT012601-gkt5.pdf',
+        destination: '/coa/FA-MOT012601.pdf',
+        permanent: false,
+      },
+      {
         source: '/s/FA-GHK012601.pdf',
         destination: 'https://static1.squarespace.com/static/6977c149e6a06b672ff85de5/t/69a25fa4103c8e127e169029/1772248996959/FA-GHK012601.pdf',
         permanent: false,
