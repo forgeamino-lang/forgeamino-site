@@ -75,7 +75,12 @@ export const metadata = {
     canonical: BASE_URL,
   },
   verification: {
-    google: 'ioubpKHqA0XrTNasJSx8SqbF3sJ40Tgs1ObpSop0gzc',
+    // Multiple GSC properties — Next.js renders one meta tag per entry.
+    // [0] pre-existing token; [1] forgeamino@gmail.com URL-prefix property.
+    google: [
+      'ioubpKHqA0XrTNasJSx8SqbF3sJ40Tgs1ObpSop0gzc',
+      'NsgubQ-uQCTWziJ0L-PAYJree_aHjjgtZrcIDVubamk',
+    ],
   },
 }
 

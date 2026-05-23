@@ -24,7 +24,9 @@ export default function sitemap() {
       },
         ]
 
-  const productPages = PRODUCTS.map((product) => ({
+  // Only shop-visible products. Hidden Lab / prescription items are
+  // intentionally excluded so Google does not index restricted pages.
+  const productPages = PRODUCTS.filter((product) => !product.hidden).map((product) => ({
         url: `${BASE_URL}/shop/p/${product.slug}`,
         lastModified: new Date(),
         changeFrequency: 'monthly',
