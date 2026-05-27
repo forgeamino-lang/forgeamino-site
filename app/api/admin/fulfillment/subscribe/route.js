@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '../../../../../lib/adminAuth'
 import { createServerClient } from '../../../../../lib/supabase'
 
-const ALLOWED_USERS = new Set(['Angela', 'Mark', 'Sean'])
+const ALLOWED_USERS = new Set(['Angela', 'Mark', 'Sean', 'Amy'])
 
 export const dynamic = 'force-dynamic'
 
