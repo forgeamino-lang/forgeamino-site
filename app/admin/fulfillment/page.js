@@ -18,7 +18,7 @@ function buildMonthOptions() {
 }
 const MONTH_OPTIONS = buildMonthOptions()
 const CURRENT_MONTH = MONTH_OPTIONS[0].value
-const STAFF = ['Angela', 'Mark', 'Sean']
+const STAFF = ['Angela', 'Mark', 'Sean', 'Amy']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
 const POLL_INTERVAL_MS   = 30000   // 30s — generous, polls only catch peer edits
@@ -140,7 +140,7 @@ export default function FulfillmentPage() {
   }, [])
 
   async function handleEnableNotifications() {
-    if (!pushUser) { setError('Pick a user (Angela / Mark / Sean) first'); return }
+    if (!pushUser) { setError('Pick a user (Angela / Mark / Sean / Amy) first'); return }
     setPushStatus('subscribing'); setError('')
     try {
       const perm = await Notification.requestPermission()
