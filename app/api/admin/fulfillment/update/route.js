@@ -10,7 +10,7 @@ import { createServerClient } from '../../../../../lib/supabase'
 export const dynamic = 'force-dynamic'
 
 const ALLOWED_PAYMENT  = new Set(['pending', 'paid', 'failed'])
-const ALLOWED_CLAIM    = new Set(['Angela', 'Mark', 'Sean', null, ''])
+const ALLOWED_CLAIM    = new Set(['Angela', 'Mark', 'Sean', 'Amy', null, ''])
 const ALLOWED_FULFIL   = new Set(['pending', 'processing', 'shipped', 'delivered'])
 
 export async function PATCH(request) {
