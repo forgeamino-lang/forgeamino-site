@@ -169,16 +169,46 @@ console.error('Sticky-locked affiliate discount lookup failed:', e?.message || e
 }
 
 // Did the customer ACTIVELY type a code on THIS order that matches the
-// resolved code? (Either typed it for the first time, or re-typed the
-// same code their email is locked to.) This is the discount-eligibility
-// signal — not attribution_source alone.
+// resolved attribution code?
 const form_typed_raw = typeof affiliate_code === 'string' ? affiliate_code.trim() : ''
 const form_code_typed_matches = form_typed_raw.length > 0 && affiliate_code_clean &&
 form_typed_raw.toLowerCase() === affiliate_code_clean.toLowerCase()
 
+// ── If locked to a DIFFERENT code than typed, fetch that code's discount ─
+// Attribution stays with the locked code for analytics. But the customer
+// should receive the discount for whatever valid code they actively typed —
+// even if their email is sticky-locked to a different affiliate. This handles
+// e.g. an OWNERS-locked customer who types FRIENDS at checkout: they receive
+// the FRIENDS 10% discount while the order is still attributed to OWNERS.
+if (attribution_source === 'locked' && !form_code_typed_matches && form_typed_raw.length > 0) {
+try {
+const { data: typed_aff } = await supabase
+.from('affiliates')
+.select('discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist')
+.ilike('code', form_typed_raw)
+.eq('active', true)
+.maybeSingle()
+if (typed_aff) {
+// Overwrite form_discount_* with the typed code's config so the
+// discount calculation below uses the right values.
+form_discount_pct = Number(typed_aff.discount_pct || 0)
+form_discount_to_cost = !!typed_aff.discount_to_cost
+form_discount_to_fixed_price = !!typed_aff.discount_to_fixed_price
+form_product_prices = typed_aff.product_prices || null
+form_email_whitelist = Array.isArray(typed_aff.email_whitelist)
+? typed_aff.email_whitelist.map(s => String(s).toLowerCase())
+: null
+}
+} catch (e) {
+console.error('Typed code discount fallback lookup failed:', e?.message || e)
+}
+}
+
 // ── Apply customer-facing discount (if any) ────────────────────────────
-// Only applies when the code was ACTIVELY typed on THIS order (not from
-// sticky attribution). Per-order rule: discount is NOT sticky across orders.
+// Applies whenever the customer actively typed any affiliate code, regardless
+// of sticky attribution. Attribution (which code gets credit) is separate from
+// discount eligibility (whether a typed code grants a price break).
+// Per-order rule: discount is NOT sticky across orders — code must be typed.
 //
 // If the affiliate has an email_whitelist, the customer email must be in
 // it (case-insensitive). Otherwise the discount is silently rejected and
@@ -189,7 +219,7 @@ let final_subtotal = server_subtotal
 let final_tax_amount = server_tax_amount
 let final_total = server_total
 
-if (attribution_source === 'form' || (attribution_source === 'locked' && form_code_typed_matches)) {
+if (form_typed_raw.length > 0) {
 const whitelist_ok = !form_email_whitelist || (email_lower && form_email_whitelist.includes(email_lower))
 
 // Cost-based discount (OWNERS): pay QBO PurchaseCost instead of retail.
