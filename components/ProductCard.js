@@ -26,19 +26,27 @@ export default function ProductCard({ product }) {
     })
   }
 
+  const showComingSoon = !product.inStock || product.comingSoon
+
   return (
     <Link href={`/shop/p/${product.slug}`} className="group block">
       <div className="flex flex-col h-full">
         {/* Image container — fixed height for consistent grid alignment */}
         <div className="relative bg-gray-50 rounded-lg h-[160px] sm:h-[220px] md:h-[280px]">
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            className="object-contain p-4"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 400px"
-          />
-          {!product.inStock && (
+          {product.image ? (
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              className="object-contain p-4"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 400px"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-gray-300 text-xs uppercase tracking-widest">No Image</span>
+            </div>
+          )}
+          {showComingSoon && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
               <span className="bg-white text-[#0d1b2a] text-xs font-bold px-3 py-1 rounded uppercase tracking-wider">
                 Coming Soon
@@ -67,7 +75,7 @@ export default function ProductCard({ product }) {
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
         >
-          {product.price === 0 ? 'Coming Soon' : product.inStock ? 'Add to Cart' : 'Out of Stock'}
+          {product.comingSoon || !product.inStock ? 'Coming Soon' : 'Add to Cart'}
         </button>
       </div>
     </Link>
