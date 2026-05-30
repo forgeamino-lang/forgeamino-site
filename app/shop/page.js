@@ -1,5 +1,5 @@
 import { PRODUCTS } from '../../lib/products'
-import ProductCard from '../../components/ProductCard'
+import ShopGrid from './ShopGrid'
 import Link from 'next/link'
 
 export const metadata = {
@@ -20,30 +20,19 @@ export default function ShopPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-      {/* ── CUSTOM REQUEST BANNER ── */}
+      {/* — CUSTOM REQUEST BANNER — */}
       <div className="bg-[#f0f7ff] border-y border-[#2196f3]/20 py-4 mb-6">
         <div className="flex items-center justify-center gap-3 text-center flex-wrap">
-          <span className="text-lg">💬</span>
+          <span className="text-lg">🔬</span>
           <p className="text-sm text-[#0d1b2a]">
             <span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
-            We&apos;re happy to help source it —{' '}
+            We&apos;re happy to help source it →{' '}
             <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us →</Link>
           </p>
         </div>
       </div>
-      {/* Sort/filter bar */}
-      <div className="flex items-center justify-end mb-8 pb-4 border-b border-gray-200">
-        <span className="text-xs text-gray-400 uppercase tracking-widest">
-          {activeProducts.length} Products
-        </span>
-      </div>
 
-      {/* Product grid */}
-      <div className="product-grid">
-        {activeProducts.map(product => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
+      <ShopGrid products={activeProducts} />
 
       {/* Research disclaimer */}
       <p className="text-center text-xs text-gray-400 mt-16 max-w-xl mx-auto">
