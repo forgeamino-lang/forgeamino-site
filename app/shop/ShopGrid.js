@@ -42,13 +42,13 @@ export default function ShopGrid({ products }) {
               key={cat.key}
               onClick={() => setActiveTag(cat.key)}
               style={{
-                backgroundColor: isActive ? '#2196f3' : 'transparent',
-                color: isActive ? '#ffffff' : '#6b7280',
-                border: isActive ? '1px solid #2196f3' : '1px solid #d1d5db',
+                backgroundColor: isActive ? '#2196f3' : '#e3f2fd',
+                color: isActive ? '#ffffff' : '#1565c0',
+                border: isActive ? '1px solid #2196f3' : '1px solid #90caf9',
                 borderRadius: '9999px',
                 padding: '6px 14px',
                 fontSize: '12px',
-                fontWeight: isActive ? '600' : '400',
+                fontWeight: isActive ? '600' : '500',
                 cursor: 'pointer',
                 letterSpacing: '0.03em',
                 transition: 'all 0.15s ease',
