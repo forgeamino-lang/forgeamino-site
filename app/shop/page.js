@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Shop Research Peptides',
-  description: 'Browse our full catalog of research peptides — BPC-157, TB-500, Semaglutide, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
+  description: 'Browse our full catalog of research peptides â BPC-157, TB-500, Semaglutide, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
   alternates: {
     canonical: 'https://www.forgeamino.com/shop',
   },
@@ -16,18 +16,18 @@ export const metadata = {
 }
 
 export default function ShopPage() {
-  const activeProducts = PRODUCTS.filter(p => (p.inStock || p.price === 0) && !p.hidden)
+  const activeProducts = PRODUCTS.filter(p => (p.inStock || p.price === 0) && !p.hidden && !p.comingSoon)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-      {/* — CUSTOM REQUEST BANNER — */}
+      {/* â CUSTOM REQUEST BANNER â */}
       <div className="bg-[#f0f7ff] border-y border-[#2196f3]/20 py-4 mb-6">
         <div className="flex items-center justify-center gap-3 text-center flex-wrap">
-          <span className="text-lg">🔬</span>
+          <span className="text-lg">ð¬</span>
           <p className="text-sm text-[#0d1b2a]">
             <span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
-            We&apos;re happy to help source it →{' '}
-            <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us →</Link>
+            We&apos;re happy to help source it â{' '}
+            <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us â</Link>
           </p>
         </div>
       </div>
