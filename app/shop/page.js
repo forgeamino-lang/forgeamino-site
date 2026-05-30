@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Shop Research Peptides',
-  description: 'Browse our full catalog of research peptides Ã¢ÂÂ BPC-157, TB-500, Semaglutide, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
+  description: 'Browse our full catalog of research peptides  BPC-157, TB-500, Semaglutide, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
   alternates: {
     canonical: 'https://www.forgeamino.com/shop',
   },
@@ -20,17 +20,6 @@ export default function ShopPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-      {/* Ã¢ÂÂ CUSTOM REQUEST BANNER Ã¢ÂÂ */}
-      <div className="bg-[#f0f7ff] border-y border-[#2196f3]/20 py-4 mb-6">
-        <div className="flex items-center justify-center gap-3 text-center flex-wrap">
-          <span className="text-lg">Ã°ÂÂÂ¬</span>
-          <p className="text-sm text-[#0d1b2a]">
-            <span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
-            We&apos;re happy to help source it Ã¢ÂÂ{' '}
-            <Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us Ã¢ÂÂ</Link>
-          </p>
-        </div>
-      </div>
 
       <ShopGrid products={activeProducts} />
 
