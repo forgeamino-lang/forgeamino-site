@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Toaster } from 'react-hot-toast'
 import { ClerkProvider } from '@clerk/nextjs'
 import AgeGate from '../components/AgeGate'
+import { Analytics } from '@vercel/analytics/next'
 
 const BASE_URL = 'https://www.forgeamino.com'
 
@@ -126,6 +127,7 @@ export default function RootLayout({ children }) {
             </footer>
             <Toaster position="bottom-right" />
           </CartProvider>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
