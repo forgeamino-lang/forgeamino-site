@@ -24,7 +24,7 @@ async function lookupAffiliate(code) {
 const supabase = createServerClient()
 const { data } = await supabase
 .from('affiliates')
-.select('code, name, discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist, active, max_uses')
+.select('code, name, discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist, active, max_uses, expires_at')
 .ilike('code', code)
 .eq('active', true)
 .maybeSingle()
@@ -41,6 +41,12 @@ const { count } = await supabase
 .select('id', { count: 'exact', head: true })
 .ilike('affiliate_code', aff.code)
 return (count || 0) >= aff.max_uses
+}
+
+// Returns true if the code has passed its expiry date.
+function isExpired(aff) {
+if (!aff.expires_at) return false
+return new Date() > new Date(aff.expires_at)
 }
 
 function isEmailAllowed(aff, email) {
@@ -99,6 +105,7 @@ if (!code) return NextResponse.json({ valid: false }, { headers: { 'Cache-Contro
 try {
 const aff = await lookupAffiliate(code)
 if (!aff) return NextResponse.json({ valid: false }, { headers: { 'Cache-Control': 'no-store' } })
+if (isExpired(aff)) return NextResponse.json({ valid: false, error: 'code_expired' }, { headers: { 'Cache-Control': 'no-store' } })
 if (await isExhausted(aff)) return NextResponse.json({ valid: false, error: 'code_exhausted' }, { headers: { 'Cache-Control': 'no-store' } })
 return NextResponse.json({
 valid: true,
@@ -125,6 +132,7 @@ try {
 const aff = await lookupAffiliate(code)
 if (!aff) return NextResponse.json({ valid: false })
 
+if (isExpired(aff)) return NextResponse.json({ valid: false, error: 'code_expired' }, { headers: { 'Cache-Control': 'no-store' } })
 if (await isExhausted(aff)) return NextResponse.json({ valid: false, error: 'code_exhausted' }, { headers: { 'Cache-Control': 'no-store' } })
 
 if (!isEmailAllowed(aff, email)) {
