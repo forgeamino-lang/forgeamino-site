@@ -32,7 +32,15 @@ export default function LabPage() {
           <p className="text-sm text-gray-300 leading-relaxed mb-6">
             Restricted-access research materials. Enter your access code to unlock this session.
           </p>
-          <LabUnlockForm />
+          <LabUnlockForm /
+                    <div className="mt-5 pt-4 border-t border-[#c9a227]/20 text-center">
+                                  <p className="text-xs text-gray-400 leading-relaxed">
+                                                No Lab Code?{' '}
+                                                              <a href="mailto:forgeamino@gmail.com" className="text-[#c9a227] hover:text-[#e6b82a] underline underline-offset-2 transition-colors font-medium">
+                                                                              Email us to request one
+                                                                                            </a>
+                                                                                                        </p>
+                                                                                                                  </div>
           <p className="text-[10px] text-gray-500 mt-6 leading-relaxed uppercase tracking-widest">
             Your unlock stays active on this device for 12 hours.
           </p>
