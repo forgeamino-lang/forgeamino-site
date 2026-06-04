@@ -40,7 +40,7 @@ export default function LabPage() {
                                                                               Email us to request one
                                                                                             </a>
                                                                                                         </p>
-                                                                                                                  </div
+                                                                                                                  </div>
           <p className="text-[10px] text-gray-500 mt-6 leading-relaxed uppercase tracking-widest">
             Your unlock stays active on this device for 12 hours.
           </p>
