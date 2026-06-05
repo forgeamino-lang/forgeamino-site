@@ -69,7 +69,7 @@ const per_line = []
 for (const li of (line_items || [])) {
 const cat = li.slug ? getProductBySlug(li.slug) : null
 const lookupName = (cat && (cat.qbo_name || cat.name)) || li.qbo_name || li.name || ''
-const qboItem = itemsByName.get(lookupName)
+const qboItem = itemsByName.get(lookupName.toLowerCase())
 const cost = Number(qboItem?.PurchaseCost || 0)
 const price = Number(cat?.price ?? li.price ?? 0)
 const qty = Number(li.quantity || 0)
