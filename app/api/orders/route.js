@@ -235,7 +235,7 @@ const itemsByName = await fetchQboItems(token, realmId)
 let total_disc = 0
 for (const li of validated_line_items) {
 const name = li.qbo_name || li.name
-const qboItem = itemsByName.get(name)
+const qboItem = itemsByName.get(name.toLowerCase())
 const cost = Number(qboItem?.PurchaseCost || 0)
 const price = Number(li.price || 0)
 const qty = Number(li.quantity || 0)
