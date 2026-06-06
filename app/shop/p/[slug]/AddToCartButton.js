@@ -23,10 +23,10 @@ export default function AddToCartButton({ product }) {
     })
   }
 
-  if (!product.inStock || product.price === 0) {
+  if (!product.inStock || product.price === 0 || product.comingSoon) {
     return (
       <button disabled className="w-full py-4 bg-gray-200 text-gray-400 rounded-full font-bold tracking-widest uppercase text-sm cursor-not-allowed">
-        {product.price === 0 ? 'Coming Soon' : 'Out of Stock'}
+        {product.comingSoon || product.price === 0 ? 'Coming Soon' : 'Out of Stock'}
       </button>
     )
   }
