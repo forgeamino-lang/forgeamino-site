@@ -10,7 +10,7 @@ import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../l
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',NJ',
 'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
 'VA','WA','WV','WI','WY'
 ]
@@ -59,6 +59,26 @@ const [taxData, setTaxData] = useState(null) // full TaxJar rate object
 const [taxLoading, setTaxLoading] = useState(false)
 const [affPreview, setAffPreview] = useState(null) // { valid, discount_pct, name } or null
 const [affLoading, setAffLoading] = useState(false)
+
+// Auto-apply affiliate code from ?ref= URL param on mount
+useEffect(() => {
+const params = new URLSearchParams(window.location.search)
+const refCode = params.get('ref')
+if (!refCode) return
+const code = refCode.trim().toUpperCase()
+setForm(f => ({ ...f, affiliateCode: code }))
+setAffLoading(true)
+fetch('/api/affiliate/preview', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+cache: 'no-store',
+body: JSON.stringify({ code, email: '', line_items: [] }),
+})
+.then(r => r.json())
+.then(j => setAffPreview(j?.valid ? j : { valid: false }))
+.catch(() => setAffPreview({ valid: false }))
+.finally(() => setAffLoading(false))
+}, [])
 
 useEffect(() => {
 // Need at least a 5-digit zip and a state to look up
