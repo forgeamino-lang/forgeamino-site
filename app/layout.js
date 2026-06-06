@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import { ClerkProvider } from '@clerk/nextjs'
 import AgeGate from '../components/AgeGate'
 import { Analytics } from '@vercel/analytics/next'
+import AffiliateTracker from '../components/AffiliateTracker'
 
 const BASE_URL = 'https://www.forgeamino.com'
 
@@ -91,7 +92,8 @@ export default function RootLayout({ children }) {
       <html lang="en">
         <body>
           <AgeGate />
-          <CartProvider>
+          <AffiliateTracker />
+<CartProvider>
             <Header />
             <main className="min-h-screen">
               {children}
