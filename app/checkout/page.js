@@ -60,19 +60,18 @@ const [taxLoading, setTaxLoading] = useState(false)
 const [affPreview, setAffPreview] = useState(null) // { valid, discount_pct, name } or null
 const [affLoading, setAffLoading] = useState(false)
 
-// Auto-apply affiliate code from ?ref= URL param on mount
+// Auto-apply affiliate code from ?ref= URL param OR sessionStorage (set by AffiliateTracker in layout)
 useEffect(() => {
 const params = new URLSearchParams(window.location.search)
-const refCode = params.get('ref')
+const refCode = (params.get('ref') || sessionStorage.getItem('affiliateRef') || '').trim().toUpperCase()
 if (!refCode) return
-const code = refCode.trim().toUpperCase()
-setForm(f => ({ ...f, affiliateCode: code }))
+setForm(f => ({ ...f, affiliateCode: refCode }))
 setAffLoading(true)
 fetch('/api/affiliate/preview', {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
 cache: 'no-store',
-body: JSON.stringify({ code, email: '', line_items: [] }),
+body: JSON.stringify({ code: refCode, email: '', line_items: [] }),
 })
 .then(r => r.json())
 .then(j => setAffPreview(j?.valid ? j : { valid: false }))
