@@ -11,7 +11,7 @@ export default function ProductCard({ product }) {
 
   function handleAddToCart(e) {
     e.preventDefault()
-    if (!product.inStock || product.price === 0) return
+    if (!product.inStock || product.price === 0 || product.comingSoon) return
     addItem({
       id: product.id,
       slug: product.slug,
@@ -68,9 +68,9 @@ export default function ProductCard({ product }) {
         {/* Add to cart button */}
         <button
           onClick={handleAddToCart}
-          disabled={!product.inStock || product.price === 0}
+          disabled={!product.inStock || product.price === 0 || product.comingSoon}
           className={`w-full py-3 rounded-full text-xs font-bold tracking-widest uppercase transition-all
-            ${product.inStock && product.price > 0
+            ${product.inStock && product.price > 0 && !product.comingSoon
               ? 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
