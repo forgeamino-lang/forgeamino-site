@@ -419,6 +419,12 @@ ${affLoading || !form.affiliateCode.trim()
 {affLoading ? 'Checking…' : 'Apply'}
 </button>
 </div>
+{affPreview?.valid && (
+<p className="mt-2 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied</p>
+)}
+{affPreview && !affPreview.valid && form.affiliateCode.trim() && (
+<p className="mt-2 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
+)}
 
 <div className="bg-white rounded-lg p-6 shadow-sm sticky top-24">
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Order Summary</h2>
@@ -474,6 +480,12 @@ ${affLoading || !form.affiliateCode.trim()
 <span>${subtotalAfter.toFixed(2)}</span>
 </div>
 </>
+)}
+{affPreview?.valid && discountAmount === 0 && (
+<div className="flex justify-between items-center text-sm text-green-700 font-medium">
+<span>{form.affiliateCode.trim().toUpperCase()} — affiliate credited</span>
+<span>✓</span>
+</div>
 )}
 {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
 <p className="text-xs text-gray-400">Affiliate code not recognized — order will proceed without a discount.</p>
