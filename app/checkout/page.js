@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useCart } from '../../components/CartContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -10,7 +9,7 @@ import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../l
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',NJ',
+'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
 'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
 'VA','WA','WV','WI','WY'
 ]
