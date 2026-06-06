@@ -52,6 +52,7 @@ zip: '',
 paymentMethod: 'venmo',
 shippingMethod: 'fedex_2day',
 affiliateCode: '',
+  promoCode: '',
 })
 
 // Live tax rate from TaxJar (includes state + county + city)
@@ -59,6 +60,8 @@ const [taxData, setTaxData] = useState(null) // full TaxJar rate object
 const [taxLoading, setTaxLoading] = useState(false)
 const [affPreview, setAffPreview] = useState(null) // { valid, discount_pct, name } or null
 const [affLoading, setAffLoading] = useState(false)
+const [promoPreview, setPromoPreview] = useState(null)
+const [promoLoading, setPromoLoading] = useState(false)
 
 // Auto-apply affiliate code from ?ref= URL param OR sessionStorage (set by AffiliateTracker in layout)
 useEffect(() => {
@@ -105,12 +108,20 @@ return () => clearTimeout(timer)
 }, [form.zip, form.state, form.city])
 
 const combinedRate = taxData ? parseFloat(taxData.combined_rate) : 0
-// Customer-facing discount: server returns either a discount_pct (FRIENDS-style)
-// or a discount_amount in dollars (OWNERS-style cost-pricing).
-const discountPct = affPreview?.valid && affPreview.discount_pct > 0 ? affPreview.discount_pct : 0
-const discountFromPct = Math.round(cartTotal * discountPct * 100) / 100
-const discountFromAmt = affPreview?.valid && Number(affPreview.discount_amount) > 0 ? Number(affPreview.discount_amount) : 0
-const discountAmount = Math.max(discountFromPct, discountFromAmt) // server returns ONE of them
+// Affiliate code discount
+const affDiscountPct = affPreview?.valid && affPreview.discount_pct > 0 ? affPreview.discount_pct : 0
+const affDiscountFromPct = Math.round(cartTotal * affDiscountPct * 100) / 100
+const affDiscountFromAmt = affPreview?.valid && Number(affPreview.discount_amount) > 0 ? Number(affPreview.discount_amount) : 0
+const affDiscountAmount = Math.max(affDiscountFromPct, affDiscountFromAmt)
+
+// Promo code discount
+const promoDiscountPct = promoPreview?.valid && promoPreview.discount_pct > 0 ? promoPreview.discount_pct : 0
+const promoDiscountFromPct = Math.round(cartTotal * promoDiscountPct * 100) / 100
+const promoDiscountFromAmt = promoPreview?.valid && Number(promoPreview.discount_amount) > 0 ? Number(promoPreview.discount_amount) : 0
+const promoDiscountAmount = Math.max(promoDiscountFromPct, promoDiscountFromAmt)
+
+// Combined discount from both codes
+const discountAmount = affDiscountAmount + promoDiscountAmount
 const subtotalAfter = Math.max(0, cartTotal - discountAmount)
 const taxAmount = Math.round(subtotalAfter * combinedRate * 100) / 100
 // Shipping is computed in lib/shipping so the rule lives in exactly one place.
@@ -121,6 +132,7 @@ const orderTotal = subtotalAfter + taxAmount + shippingAmount
 function handleChange(e) {
 setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 if (e.target.name === 'affiliateCode') setAffPreview(null)
+if (e.target.name === 'promoCode') setPromoPreview(null)
 }
 
 async function applyAffiliateCode() {
@@ -150,6 +162,33 @@ setAffLoading(false)
 }
 }
 
+async function applyPromoCode() {
+const raw = (form.promoCode || '').trim()
+if (!raw) { setPromoPreview(null); return }
+setPromoLoading(true)
+try {
+const r = await fetch('/api/affiliate/preview', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+cache: 'no-store',
+body: JSON.stringify({
+code: raw,
+email: form.email,
+line_items: cart.map(i => ({
+id: i.id, slug: i.slug, name: i.name, qbo_name: i.qbo_name,
+price: i.price, quantity: i.quantity,
+})),
+}),
+})
+const j = await r.json()
+setPromoPreview(j?.valid ? j : { valid: false })
+} catch {
+setPromoPreview({ valid: false })
+} finally {
+setPromoLoading(false)
+}
+}
+
 async function handleSubmit(e) {
 e.preventDefault()
 if (cart.length === 0) return
@@ -173,6 +212,7 @@ zip: form.zip,
 payment_method: form.paymentMethod,
 shipping_method: form.shippingMethod,
 affiliate_code: form.affiliateCode || null,
+promo_code: form.promoCode || null,
 line_items: cart.map(i => ({
 id: i.id,
 slug: i.slug,
@@ -390,12 +430,53 @@ Any other comment will result in your payment being returned and your order cann
 
 {/* RIGHT: Affiliate code + Order summary */}
 <div className="space-y-6">
-{/* Affiliate code (optional) — pure attribution, no customer discount */}
+{/* Promo & Affiliate Codes */}
 <div className="bg-white rounded-lg p-6 shadow-sm">
-<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Affiliate Code</h2>
-<p className="text-xs text-gray-500 mb-3">
-If a Forge Amino sales associate referred you, enter their code here so they get credit for your order. Leave blank if none.
-</p>
+<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Discount &amp; Affiliate Codes</h2>
+
+{/* Promo Code */}
+<div className="mb-5">
+<label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Promo Code</label>
+<p className="text-xs text-gray-400 mb-2">Have a sale or discount code? Enter it here.</p>
+<div className="flex gap-2">
+<input
+name="promoCode"
+type="text"
+autoComplete="off"
+spellCheck="false"
+value={form.promoCode}
+onChange={handleChange}
+placeholder="e.g. SUMMER15"
+className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
+/>
+<button
+type="button"
+onClick={applyPromoCode}
+disabled={promoLoading || !form.promoCode.trim()}
+className={`px-4 py-3 rounded-lg text-sm font-bold tracking-wider uppercase transition-all whitespace-nowrap
+${promoLoading || !form.promoCode.trim()
+? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+: 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
+}`}
+>
+{promoLoading ? '…' : 'Apply'}
+</button>
+</div>
+{promoPreview?.valid && (
+<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.promoCode.trim().toUpperCase()} applied{promoDiscountAmount > 0 ? ` — saving ${promoDiscountAmount.toFixed(2)}` : ''}</p>
+)}
+{promoPreview && !promoPreview.valid && form.promoCode.trim() && (
+<p className="mt-1.5 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
+)}
+</div>
+
+<div className="border-t border-gray-100 my-4" />
+
+{/* Affiliate Code */}
+<div>
+<label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Affiliate Code</label>
+<p className="text-xs text-gray-400 mb-2">If a Forge Amino sales associate referred you, enter their code so they get credit.</p>
+<div className="flex gap-2">
 <input
 name="affiliateCode"
 type="text"
@@ -403,27 +484,30 @@ autoComplete="off"
 spellCheck="false"
 value={form.affiliateCode}
 onChange={handleChange}
-className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
+placeholder="Rep's code"
+className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
 />
 <button
 type="button"
 onClick={applyAffiliateCode}
 disabled={affLoading || !form.affiliateCode.trim()}
-className={`mt-3 w-full py-2.5 rounded-lg text-sm font-bold tracking-wider uppercase transition-all
+className={`px-4 py-3 rounded-lg text-sm font-bold tracking-wider uppercase transition-all whitespace-nowrap
 ${affLoading || !form.affiliateCode.trim()
 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
 : 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
 }`}
 >
-{affLoading ? 'Checking…' : 'Apply'}
+{affLoading ? '…' : 'Apply'}
 </button>
 </div>
 {affPreview?.valid && (
-<p className="mt-2 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied</p>
+<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 ? ` — saving ${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
 )}
 {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
-<p className="mt-2 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
+<p className="mt-1.5 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
 )}
+</div>
+</div>
 
 <div className="bg-white rounded-lg p-6 shadow-sm sticky top-24">
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Order Summary</h2>
@@ -459,31 +543,52 @@ ${affLoading || !form.affiliateCode.trim()
 <span>${cartTotal.toFixed(2)}</span>
 </div>
 
-{affLoading && (
+{promoLoading && (
 <div className="flex justify-between items-center text-xs text-gray-400">
-<span>Checking code…</span>
+<span>Checking promo code…</span>
 <span className="animate-pulse">—</span>
 </div>
 )}
-{affPreview?.valid && discountAmount > 0 && (
-<>
+{promoPreview?.valid && promoDiscountAmount > 0 && (
+<div className="flex justify-between items-center text-sm">
+<span className="text-green-700 font-medium">
+{promoPreview.code || form.promoCode.trim().toUpperCase()} promo
+{promoDiscountPct > 0 ? ` (${(promoDiscountPct * 100).toFixed(0)}% off)` : ''}
+</span>
+<span className="text-green-700 font-medium">−${promoDiscountAmount.toFixed(2)}</span>
+</div>
+)}
+{promoPreview?.valid && promoDiscountAmount === 0 && (
+<div className="flex justify-between items-center text-sm text-green-700 font-medium">
+<span>{form.promoCode.trim().toUpperCase()} — applied</span>
+<span>✓</span>
+</div>
+)}
+{affLoading && (
+<div className="flex justify-between items-center text-xs text-gray-400">
+<span>Checking affiliate code…</span>
+<span className="animate-pulse">—</span>
+</div>
+)}
+{affPreview?.valid && affDiscountAmount > 0 && (
 <div className="flex justify-between items-center text-sm">
 <span className="text-green-700 font-medium">
 {affPreview.code || form.affiliateCode.trim().toUpperCase()} discount
-{discountPct > 0 ? ` (${(discountPct * 100).toFixed(0)}% off)` : (affPreview.discount_to_cost ? ` (cost pricing)` : '')}
+{affDiscountPct > 0 ? ` (${(affDiscountPct * 100).toFixed(0)}% off)` : (affPreview.discount_to_cost ? ` (cost pricing)` : '')}
 </span>
-<span className="text-green-700 font-medium">−${discountAmount.toFixed(2)}</span>
+<span className="text-green-700 font-medium">−${affDiscountAmount.toFixed(2)}</span>
 </div>
-<div className="flex justify-between items-center text-sm text-gray-600 font-medium pt-1">
-<span>Subtotal after discount</span>
-<span>${subtotalAfter.toFixed(2)}</span>
-</div>
-</>
 )}
-{affPreview?.valid && discountAmount === 0 && (
+{affPreview?.valid && affDiscountAmount === 0 && (
 <div className="flex justify-between items-center text-sm text-green-700 font-medium">
 <span>{form.affiliateCode.trim().toUpperCase()} — affiliate credited</span>
 <span>✓</span>
+</div>
+)}
+{discountAmount > 0 && (
+<div className="flex justify-between items-center text-sm text-gray-600 font-medium pt-1">
+<span>Subtotal after discount</span>
+<span>${subtotalAfter.toFixed(2)}</span>
 </div>
 )}
 {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
