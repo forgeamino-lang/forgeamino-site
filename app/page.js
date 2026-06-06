@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { getSaleActive } from '../lib/siteConfig'
 
 export const metadata = {
   title: 'High-Quality Research Peptides',
@@ -14,7 +15,8 @@ export const metadata = {
   },
 }
 
-export default function Home() {
+export default async function Home() {
+  const saleActive = await getSaleActive()
   return (
     <div>
       {/* ── HERO ── */}
@@ -37,6 +39,12 @@ export default function Home() {
           <div className="max-w-xl">
             {/* Badge pills */}
             <div className="flex flex-wrap gap-2 mb-5">
+              {saleActive && (
+                <span style={{ background: '#AAFF00', color: '#1a3300' }}
+                  className="inline-block font-black px-3 py-1.5 rounded-full text-xs tracking-widest whitespace-nowrap">
+                  🔥 15% OFF — SUMMER15
+                </span>
+              )}
               {['Third Party Lab Tested', 'Fast Shipping', 'Free Shipping on $250+'].map((badge) => (
                 <span
                   key={badge}
@@ -73,6 +81,16 @@ export default function Home() {
                 Shop Now
               </Link>
             </div>
+            {saleActive && (
+              <p className="text-white/90 text-sm font-semibold mt-3">
+                Use code{' '}
+                <span style={{ background: '#AAFF00', color: '#1a3300' }}
+                  className="font-black px-2 py-0.5 rounded-full text-xs tracking-widest">
+                  SUMMER15
+                </span>
+                {' '}for 15% off
+              </p>
+            )}
           </div>
         </div>
       </section>
