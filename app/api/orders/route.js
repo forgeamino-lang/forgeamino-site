@@ -280,6 +280,41 @@ final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount
 }
 }
 
+// ── Apply promo code discount if no affiliate discount was applied ──────
+// Promo codes (e.g. SUMMER15) are entered in the separate "Promo Code"
+// form field. They live in the same affiliates table and apply the same
+// percent-off logic, but do NOT trigger sticky attribution.
+let promo_code_clean = null
+if (server_discount_amount === 0 && typeof body.promo_code === 'string') {
+const promo_raw = body.promo_code.trim()
+if (promo_raw.length > 0) {
+try {
+const { data: promo } = await supabase
+.from('affiliates')
+.select('id, code, discount_pct, email_whitelist')
+.ilike('code', promo_raw)
+.eq('active', true)
+.maybeSingle()
+if (promo) {
+promo_code_clean = promo.code
+const promo_whitelist = Array.isArray(promo.email_whitelist)
+? promo.email_whitelist.map(s => String(s).toLowerCase())
+: null
+const promo_whitelist_ok = !promo_whitelist || (email_lower && promo_whitelist.includes(email_lower))
+const promo_pct = Number(promo.discount_pct || 0)
+if (promo_whitelist_ok && promo_pct > 0) {
+server_discount_amount = Number((server_subtotal * promo_pct).toFixed(2))
+final_subtotal = Number((server_subtotal - server_discount_amount).toFixed(2))
+final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
+final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+}
+}
+} catch (promoErr) {
+console.error('Promo code lookup failed:', promoErr)
+}
+}
+}
+
 // Insert order into database
 const { data, error } = await supabase
 .from('orders')
@@ -294,6 +329,7 @@ subtotal: final_subtotal,
 tax_amount: final_tax_amount,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
+...(promo_code_clean ? { promo_code: promo_code_clean } : {}),
 },
 payment_method,
 line_items: validated_line_items,
@@ -367,6 +403,7 @@ shipping_method: trusted_shipping_method,
 shipping_amount: server_shipping_amount,
 total: final_total,
 affiliate_code: affiliate_code_clean,
+promo_code: promo_code_clean,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
 }
