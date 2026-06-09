@@ -280,12 +280,14 @@ final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount
 }
 }
 
-// ── Apply promo code discount if no affiliate discount was applied ──────
+// ── Apply promo code discount (stacks on top of any affiliate discount) ─
 // Promo codes (e.g. SUMMER15) are entered in the separate "Promo Code"
 // form field. They live in the same affiliates table and apply the same
 // percent-off logic, but do NOT trigger sticky attribution.
+// Stacking rule: promo is applied to the already-discounted subtotal, so
+// FRIENDS 10% + SUMMER15 15% = 10% off first, then 15% off the remainder.
 let promo_code_clean = null
-if (server_discount_amount === 0 && typeof body.promo_code === 'string') {
+if (typeof body.promo_code === 'string') {
 const promo_raw = body.promo_code.trim()
 if (promo_raw.length > 0) {
 try {
@@ -303,8 +305,10 @@ const promo_whitelist = Array.isArray(promo.email_whitelist)
 const promo_whitelist_ok = !promo_whitelist || (email_lower && promo_whitelist.includes(email_lower))
 const promo_pct = Number(promo.discount_pct || 0)
 if (promo_whitelist_ok && promo_pct > 0) {
-server_discount_amount = Number((server_subtotal * promo_pct).toFixed(2))
-final_subtotal = Number((server_subtotal - server_discount_amount).toFixed(2))
+// Apply to already-discounted subtotal so discounts stack correctly
+const promo_discount = Number((final_subtotal * promo_pct).toFixed(2))
+server_discount_amount = Number((server_discount_amount + promo_discount).toFixed(2))
+final_subtotal = Number((final_subtotal - promo_discount).toFixed(2))
 final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
 final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
 }
