@@ -66,6 +66,11 @@ export default function LabProductCard({ product }) {
           <h3 className="font-bold text-[#0d1b2a] text-sm tracking-wider uppercase leading-snug mb-2 min-h-[2.5rem]">
             {product.name}
           </h3>
+          {product.description && (
+            <p className="font-bold text-[#0d1b2a] text-sm tracking-wider uppercase leading-snug mb-2">
+              {product.description}
+            </p>
+          )}
           <p className="text-[#0d1b2a] font-medium text-sm mb-4">
             {formatPrice(product.price)}
           </p>
