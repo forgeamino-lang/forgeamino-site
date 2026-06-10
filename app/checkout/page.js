@@ -381,10 +381,16 @@ className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ou
 </div>
 <div className="flex-1">
 <p className="font-bold text-[#0d1b2a] text-sm">Local Delivery <span className="text-green-600">— FREE</span></p>
-<p className="text-xs text-gray-500">We'll coordinate drop-off directly. Select this only if you're local.</p>
+<p className="text-xs text-gray-500">Norman, Oklahoma addresses only. We'll coordinate drop-off directly.</p>
 </div>
 {form.shippingMethod === 'local_delivery' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
 </label>
+{form.shippingMethod === 'local_delivery' && (
+  <div className="mt-3 bg-amber-50 border-2 border-amber-400 rounded-lg p-4">
+    <p className="text-amber-800 font-bold text-sm mb-1">📍 Norman, Oklahoma Only</p>
+    <p className="text-amber-700 text-sm">Local delivery is available for Norman, OK addresses only. If you are outside Norman, please select FedEx 2-Day shipping above.</p>
+  </div>
+)}
 </div>
 
 {/* Payment method */}
