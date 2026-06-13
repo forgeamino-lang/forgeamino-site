@@ -438,8 +438,9 @@ Any other comment will result in your payment being returned and your order cann
 <div className="space-y-6">
 {/* Promo & Affiliate Codes */}
 <div className="bg-white rounded-lg p-6 shadow-sm">
-<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Discount &amp; Affiliate Codes</h2>
+<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Affiliate Code</h2>
 
+{/* PROMO_CODE_HIDDEN_START */}{false && (<>
 {/* Promo Code */}
 <div className="mb-5">
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Promo Code</label>
@@ -477,6 +478,7 @@ ${promoLoading || !form.promoCode.trim()
 </div>
 
 <div className="border-t border-gray-100 my-4" />
+</>)}{/* PROMO_CODE_HIDDEN_END */}
 
 {/* Affiliate Code */}
 <div>
