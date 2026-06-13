@@ -24,6 +24,7 @@ tax_amount,
 tax_rate,
 total,
 affiliate_code,
+promo_code,
 } = body
 
 // Basic validation
@@ -281,36 +282,57 @@ final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount
 }
 
 // ── Apply promo code discount (stacks on top of any affiliate discount) ─
-// Promo codes (e.g. SUMMER15) are entered in the separate "Promo Code"
-// form field. They live in the same affiliates table and apply the same
-// percent-off logic, but do NOT trigger sticky attribution.
-// Stacking rule: promo is applied to the already-discounted subtotal, so
-// FRIENDS 10% + SUMMER15 15% = 10% off first, then 15% off the remainder.
+// Supports one-time-per-customer codes (one_time_per_customer = true).
+// If the code has affiliated_with set, using it also locks attribution.
 let promo_code_clean = null
-if (typeof body.promo_code === 'string') {
-const promo_raw = body.promo_code.trim()
+let promo_one_time = false
+let promo_affiliated_with = null
+let promo_discount_applied = false
+if (typeof promo_code === 'string') {
+const promo_raw = promo_code.trim()
 if (promo_raw.length > 0) {
 try {
 const { data: promo } = await supabase
 .from('affiliates')
-.select('id, code, discount_pct, email_whitelist')
+.select('id, code, discount_pct, email_whitelist, one_time_per_customer, affiliated_with')
 .ilike('code', promo_raw)
 .eq('active', true)
 .maybeSingle()
 if (promo) {
 promo_code_clean = promo.code
+promo_one_time = !!promo.one_time_per_customer
+promo_affiliated_with = promo.affiliated_with || null
+
+// One-time-per-customer check: skip discount if already redeemed
+let already_redeemed = false
+if (promo_one_time && email_lower) {
+try {
+const { data: redemption } = await supabase
+.from('promo_code_redemptions')
+.select('id')
+.eq('promo_code', promo.code)
+.eq('customer_email', email_lower)
+.maybeSingle()
+already_redeemed = !!redemption
+} catch (redemptionCheckErr) {
+console.error('Promo redemption check failed:', redemptionCheckErr)
+}
+}
+
+if (!already_redeemed) {
 const promo_whitelist = Array.isArray(promo.email_whitelist)
 ? promo.email_whitelist.map(s => String(s).toLowerCase())
 : null
 const promo_whitelist_ok = !promo_whitelist || (email_lower && promo_whitelist.includes(email_lower))
 const promo_pct = Number(promo.discount_pct || 0)
 if (promo_whitelist_ok && promo_pct > 0) {
-// Apply to already-discounted subtotal so discounts stack correctly
 const promo_discount = Number((final_subtotal * promo_pct).toFixed(2))
 server_discount_amount = Number((server_discount_amount + promo_discount).toFixed(2))
 final_subtotal = Number((final_subtotal - promo_discount).toFixed(2))
 final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
 final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+promo_discount_applied = true
+}
 }
 }
 } catch (promoErr) {
@@ -333,7 +355,6 @@ subtotal: final_subtotal,
 tax_amount: final_tax_amount,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
-...(promo_code_clean ? { promo_code: promo_code_clean } : {}),
 },
 payment_method,
 line_items: validated_line_items,
@@ -344,6 +365,7 @@ affiliate_code: affiliate_code_clean,
 affiliate_id,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
+...(promo_code_clean ? { promo_code: promo_code_clean } : {}),
 })
 .select('id')
 .single()
@@ -382,6 +404,45 @@ console.error('Sticky attribution write failed:', attrErr)
 }
 }
 
+// ── Record one-time promo redemption ──────────────────────────────────
+// Prevents ALBRIGHT10 (and any future one-time codes) from being reused.
+if (promo_discount_applied && promo_one_time && promo_code_clean && email_lower) {
+try {
+await supabase
+.from('promo_code_redemptions')
+.upsert({
+promo_code: promo_code_clean,
+customer_email: email_lower,
+order_id: data.id,
+}, { onConflict: 'promo_code,customer_email', ignoreDuplicates: true })
+} catch (redemptionWriteErr) {
+console.error('Promo redemption record failed:', redemptionWriteErr)
+}
+}
+
+// ── If promo has affiliated_with, lock attribution to that affiliate ───
+// ALBRIGHT10 sets affiliated_with = 'ALBRIGHT', so any customer who uses
+// the code gets permanently tied to ALBRIGHT for future order attribution.
+if (promo_discount_applied && promo_affiliated_with && email_lower) {
+try {
+const { data: promo_aff_row } = await supabase
+.from('affiliates')
+.select('id')
+.ilike('code', promo_affiliated_with)
+.maybeSingle()
+await supabase
+.from('customer_affiliate_attribution')
+.upsert({
+customer_email: email_lower,
+affiliate_code: promo_affiliated_with,
+affiliate_id: promo_aff_row?.id || null,
+first_order_number: order_number,
+}, { onConflict: 'customer_email', ignoreDuplicates: true })
+} catch (promoAttrErr) {
+console.error('Promo affiliate attribution write failed:', promoAttrErr)
+}
+}
+
 const order = {
 id: data.id,
 order_number,
@@ -407,7 +468,6 @@ shipping_method: trusted_shipping_method,
 shipping_amount: server_shipping_amount,
 total: final_total,
 affiliate_code: affiliate_code_clean,
-promo_code: promo_code_clean,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
 }
