@@ -108,6 +108,35 @@ console.error('Sticky attribution lookup failed:', lookupErr)
 }
 }
 
+// Step 1b — Cost-pricing whitelist override (e.g. OWNERS):
+// If a customer is sticky-locked to another affiliate but their email is on
+// the whitelist of a cost-pricing code they actively typed, clear the sticky
+// lock so they get proper attribution AND pricing for the cost-pricing code.
+if (attribution_source === 'locked' && typeof affiliate_code === 'string') {
+const _typed_override = affiliate_code.trim()
+if (_typed_override.length > 0) {
+try {
+const { data: _override_aff } = await supabase
+.from('affiliates')
+.select('email_whitelist, discount_to_cost')
+.ilike('code', _typed_override)
+.eq('active', true)
+.maybeSingle()
+if (_override_aff?.discount_to_cost && Array.isArray(_override_aff.email_whitelist)) {
+const _wl = _override_aff.email_whitelist.map(s => String(s).toLowerCase())
+if (email_lower && _wl.includes(email_lower)) {
+// Whitelisted cost-pricing member — clear sticky lock; Step 2 handles it
+affiliate_code_clean = null
+affiliate_id = null
+attribution_source = 'none'
+}
+}
+} catch (_overrideErr) {
+console.error('OWNERS whitelist attribution override check failed:', _overrideErr)
+}
+}
+}
+
 // Step 2 — if not locked, fall back to the form-typed code (and resolve it).
 // Also pull discount_pct so we can apply customer-facing discounts
 // (e.g., FRIENDS = 10% off) when the code is ACTIVELY typed at checkout.
