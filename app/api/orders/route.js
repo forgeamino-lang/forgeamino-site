@@ -400,6 +400,16 @@ subtotal_before_discount: server_subtotal_before_discount,
 .single()
 
 if (error) {
+// Idempotency: duplicate submission — order already exists, return success
+if (error.code === '23505') {
+console.warn('Duplicate order submission ignored for order_number:', order_number)
+const { data: existing } = await supabase
+.from('orders')
+.select('id')
+.eq('order_number', order_number)
+.single()
+return NextResponse.json({ orderId: existing?.id, orderNumber: order_number })
+}
 console.error('Supabase error:', error)
 Sentry.captureException(new Error('Supabase order insert failed'), {
 extra: {
