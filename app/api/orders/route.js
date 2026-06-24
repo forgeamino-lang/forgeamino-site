@@ -517,7 +517,7 @@ subtotal_before_discount: server_subtotal_before_discount,
 // never go blind on orders again when token rotation breaks
 // 3. QuickBooks invoice sync (which itself sends the PDF email on success)
 // None of these can fail the order — they're all .catch'd to Sentry/console.
-await const [confirmResult] = await Promise.all([
+const [confirmResult] = await Promise.all([
 sendOrderConfirmationEmail(order).catch(e => { console.error('Customer email failed:', e); return null; }),
 sendOrderReceivedAlert(order).catch(e => {
 console.error('Admin order-received alert failed:', e)
