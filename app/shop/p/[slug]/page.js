@@ -17,7 +17,7 @@ export async function generateMetadata({ params }) {
   if (!product || product.hidden) return { title: 'Product Not Found' }
   const description = (product.tagline || product.description || '').slice(0, 155)
   const productUrl = `${BASE_URL}/shop/p/${product.slug}`
-  const imageUrl = `${BASE_URL}${product.image}`
+  const imageUrl = product.image ? `${BASE_URL}${product.image}` : null
   return {
     title: product.name,
     description,
@@ -27,13 +27,13 @@ export async function generateMetadata({ params }) {
       description,
       url: productUrl,
       type: 'website',
-      images: [{ url: imageUrl, width: 800, height: 800, alt: product.name }],
+      ...(imageUrl ? { images: [{ url: imageUrl, width: 800, height: 800, alt: product.name }] } : {}),
     },
     twitter: {
       card: 'summary_large_image',
       title: `${product.name} | Forge Amino`,
       description,
-      images: [imageUrl],
+      ...(imageUrl ? { images: [imageUrl] } : {}),
     },
   }
 }
@@ -49,7 +49,7 @@ export default function ProductPage({ params }) {
     '@type': 'Product',
     name: product.name,
     description: product.tagline || product.description || '',
-    image: `${BASE_URL}${product.image}`,
+    ...(product.image ? { image: `${BASE_URL}${product.image}` } : {}),
     url: `${BASE_URL}/shop/p/${product.slug}`,
     brand: {
       '@type': 'Brand',
@@ -59,7 +59,7 @@ export default function ProductPage({ params }) {
       '@type': 'Offer',
       priceCurrency: 'USD',
       price: product.price.toFixed(2),
-      availability: product.inStock && product.price > 0
+      availability: product.inStock && product.price > 0 && !product.comingSoon
         ? 'https://schema.org/InStock'
         : 'https://schema.org/PreOrder',
       url: `${BASE_URL}/shop/p/${product.slug}`,
@@ -69,6 +69,8 @@ export default function ProductPage({ params }) {
       },
     },
   }
+
+  const isComingSoon = !product.inStock || product.price === 0 || product.comingSoon
 
   return (
     <>
@@ -88,15 +90,21 @@ export default function ProductPage({ params }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start mb-10 md:mb-12">
         {/* Product image */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm relative h-[280px] sm:h-[360px] md:h-[420px]">
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            className="object-contain p-8"
-            sizes="(max-width: 768px) 100vw, 50vw"
-            priority
-          />
-          {(!product.inStock || product.price === 0) && (
+          {product.image ? (
+            <Image
+              src={product.image}
+              alt={product.name}
+              fill
+              className="object-contain p-8"
+              sizes="(max-width: 768px) 100vw, 50vw"
+              priority
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-gray-300 text-sm font-medium tracking-wider uppercase">Image Coming Soon</p>
+            </div>
+          )}
+          {isComingSoon && (
             <div className="absolute inset-0 bg-black/30 rounded-xl flex items-center justify-center">
               <span className="bg-white text-[#0d1b2a] text-xs font-bold px-4 py-2 rounded uppercase tracking-wider">
                 Coming Soon
@@ -194,7 +202,7 @@ export default function ProductPage({ params }) {
           </section>
         )}
 
-        {/* Tissue-Specific Effects (BPC-157, BPC tablets) */}
+        {/* Tissue-Specific Effects */}
         {product.tissueEffects && product.tissueEffects.length > 0 && (
           <section>
             <h2 className="text-sm font-bold text-[#0d1b2a] tracking-widest uppercase mb-4">
