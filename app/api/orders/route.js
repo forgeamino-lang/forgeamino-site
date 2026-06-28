@@ -326,6 +326,7 @@ const { data: promo } = await supabase
 .select('id, code, discount_pct, email_whitelist, one_time_per_customer, affiliated_with')
 .ilike('code', promo_raw)
 .eq('active', true)
+.or('expires_at.is.null,expires_at.gt.now()')
 .maybeSingle()
 if (promo) {
 promo_code_clean = promo.code
