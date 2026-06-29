@@ -370,22 +370,7 @@ className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ou
 ? 'You qualify for free shipping (orders $250+)'
 : `Add $${(FREE_SHIPPING_THRESHOLD - cartTotal).toFixed(2)} more to qualify for free shipping`}
 </p>
-</div>
-{form.shippingMethod === 'fedex_2day' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
-</label>
-
-<label className={`mt-3 flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${form.shippingMethod === 'local_delivery' ? 'border-[#2196f3] bg-[#f0f7ff]' : 'border-gray-200 hover:border-gray-300'}`}>
-<input type="radio" name="shippingMethod" value="local_delivery" checked={form.shippingMethod === 'local_delivery'} onChange={handleChange} className="sr-only" />
-<div className="w-10 h-10 rounded-lg bg-[#0d1b2a] flex items-center justify-center flex-shrink-0">
-<span className="text-white text-lg">📍</span>
-</div>
-<div className="flex-1">
-<p className="font-bold text-[#0d1b2a] text-sm">Local Delivery <span className="text-green-600">— FREE</span></p>
-<p className="text-xs text-gray-500">Norman, Oklahoma addresses only. We'll coordinate drop-off directly.</p>
-</div>
-{form.shippingMethod === 'local_delivery' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
-</label>
-{form.shippingMethod === 'local_delivery' && (
+</div>{form.shippingMethod === 'local_delivery' && (
   <div className="mt-3 bg-amber-50 border-2 border-amber-400 rounded-lg p-4">
     <p className="text-amber-800 font-bold text-sm mb-1">📍 Norman, Oklahoma Only</p>
     <p className="text-amber-700 text-sm">Local delivery is available for Norman, OK addresses only. If you are outside Norman, please select FedEx 2-Day shipping above.</p>
