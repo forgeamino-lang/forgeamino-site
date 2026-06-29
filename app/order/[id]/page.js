@@ -24,7 +24,7 @@ export default async function OrderConfirmationPage({ params }) {
   const taxRate = order.shipping_address.tax_rate ?? 0
   const shippingAmount = Number(order.shipping_address.shipping_amount ?? 0)
   const shippingMethod = order.shipping_address.shipping_method
-  const shippingLabel = shippingMethod === 'local_delivery' ? 'Local Delivery' : 'FedEx 2-Day'
+  const shippingLabel = 'FedEx 2-Day'
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
