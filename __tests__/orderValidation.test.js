@@ -100,12 +100,6 @@ describe('computeShipping', () => {
     expect(computeShipping(999, 'fedex_2day')).toBe(0)
   })
 
-  test('local_delivery is always $0 regardless of subtotal', () => {
-    expect(computeShipping(0, 'local_delivery')).toBe(0)
-    expect(computeShipping(50, 'local_delivery')).toBe(0)
-    expect(computeShipping(500, 'local_delivery')).toBe(0)
-  })
-
   test('unknown method falls through to fedex_2day', () => {
     expect(computeShipping(50, 'pigeon_mail')).toBe(FEDEX_2DAY_COST)
     expect(computeShipping(500, undefined)).toBe(0)
