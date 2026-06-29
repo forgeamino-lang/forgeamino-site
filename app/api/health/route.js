@@ -9,36 +9,30 @@ async function checkSupabase(sb) {
   try {
     const { data, error } = await sb
       .from('orders')
-      .select('id, order_number, status, created_at, qbo_invoice_id')
+      .select('id, order_number, payment_status, fulfillment_status, created_at')
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(30)
     if (error) throw error
 
     const now = Date.now()
-    const stuckOrders = []
-    const unsyncedOrders = []
+    const stuckPayments = []
+    const unshippedPaid = []
 
     for (const o of data) {
       const ageHours = (now - new Date(o.created_at).getTime()) / 3_600_000
-      // Pending/processing for more than 24h is a warning
-      if ((o.status === 'pending' || o.status === 'processing') && ageHours > 24) {
-        stuckOrders.push({ id: o.order_number || o.id, status: o.status, ageHours: Math.round(ageHours) })
-      }
-      // Paid order with no QBO invoice after 1h is a warning
-      if (o.status === 'paid' && !o.qbo_invoice_id && ageHours > 1) {
-        unsyncedOrders.push({ id: o.order_number || o.id, ageHours: Math.round(ageHours) })
+      // Paid order sitting unfulfilled for more than 3 days
+      if (o.payment_status === 'paid' && o.fulfillment_status === 'pending' && ageHours > 72) {
+        unshippedPaid.push({ id: o.order_number || o.id, ageHours: Math.round(ageHours) })
       }
     }
 
     const warns = []
-    if (stuckOrders.length) warns.push(`${stuckOrders.length} order(s) stuck in pending/processing >24h`)
-    if (unsyncedOrders.length) warns.push(`${unsyncedOrders.length} paid order(s) missing QBO invoice >1h`)
+    if (unshippedPaid.length) warns.push(`${unshippedPaid.length} paid order(s) unfulfilled for >72h: ${unshippedPaid.map(o => o.id).join(', ')}`)
 
     return {
       ok: true,
       recentOrders: data.length,
-      stuckOrders,
-      unsyncedOrders,
+      unshippedPaid,
       warns,
     }
   } catch (err) {
@@ -97,9 +91,9 @@ function checkCatalog() {
       if (p.price > 0 && !p.hidden && !p.qbo_name) {
         issues.push({ id: p.id, name: p.name, issue: 'missing qbo_name (will fall back to "Services" in QBO)' })
       }
-      // Encoding corruption check: â\x80\x93 or similar multi-byte garbage
+      // Encoding corruption check: â chars from bad btoa() re-encoding
       const serialized = JSON.stringify(p)
-      if (/â[-¿]/.test(serialized)) {
+      if (/â[-¿]/.test(serialized)) {
         issues.push({ id: p.id, name: p.name, issue: 'encoding corruption detected (â chars in product data)' })
       }
       // Slug sanity
