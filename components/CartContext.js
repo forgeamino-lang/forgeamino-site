@@ -69,6 +69,18 @@ export function CartProvider({ children }) {
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
 
+  // Auto-add 1 BAC Water on first shop visit; user can remove it
+  useEffect(() => {
+    const seeded = localStorage.getItem('bac_water_seeded')
+    if (!seeded) {
+      const bacWater = getProductBySlug('bac-water-30ml')
+      if (bacWater) {
+        dispatch({ type: 'ADD_ITEM', item: { ...bacWater, quantity: 1 } })
+        localStorage.setItem('bac_water_seeded', 'true')
+      }
+    }
+  }, [])
+
   return (
     <CartContext.Provider value={{ cart, addItem, removeItem, updateQuantity, clearCart, purgeHiddenItems, cartCount, cartTotal }}>
       {children}
