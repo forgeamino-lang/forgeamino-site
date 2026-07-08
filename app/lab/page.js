@@ -47,7 +47,8 @@ export default function LabPage() {
         </div>
       </div>
     )
-              
+
+  }
   // Unlocked: three buckets --
   //   labOnly      : hidden && !prescription   (R / S / T -- Restricted Access)
   //   prescription : hidden && prescription    (compounded Rx from 503a/503b)
