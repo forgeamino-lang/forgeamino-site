@@ -42,13 +42,12 @@ export default function LabPage() {
                                                                                                         </p>
                                                                                                                   </div>
           <p className="text-[10px] text-gray-500 mt-6 leading-relaxed uppercase tracking-widest">
-            Your unlock stays active on this device for 12 hours.
+            Your unlock stays active on this device for 1 year.
           </p>
         </div>
       </div>
     )
-  }
-
+              
   // Unlocked: three buckets --
   //   labOnly      : hidden && !prescription   (R / S / T -- Restricted Access)
   //   prescription : hidden && prescription    (compounded Rx from 503a/503b)
