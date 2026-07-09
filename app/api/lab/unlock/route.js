@@ -53,7 +53,7 @@ export async function POST(request) {
     return noStore(NextResponse.json({ error: 'Lab not configured' }, { status: 503 }))
   }
 
-  if (!codes.includes(code)) {
+    if (!codes.some(c => c.toUpperCase().replace(/\s+/g, '') === code.toUpperCase().replace(/\s+/g, ''))) {
     logUnlockAttempt(request, 'invalid', code)
     return noStore(NextResponse.json({ error: 'Invalid code' }, { status: 401 }))
   }
