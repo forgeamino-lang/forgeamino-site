@@ -321,10 +321,10 @@ export default function FulfillmentPage() {
     if (isActive(o)) acc.active++
     return acc
   }, { active: 0, attention: 0, inProgress: 0, done: 0 })
-  const affiliateOptions = Array.from(new Set(orders.map(o => o.affiliate_code).filter(Boolean))).sort(); const filtered = orders.filter(o => {
+  const affiliateOptions = Array.from(new Set(orders.map(o => o.affiliate_code).filter(Boolean))).sort(); const filtered = orders.filter(o => { if (affFilter && (o.affiliate_code || '') !== affFilter) return false;
     if (filter === 'active')      return isActive(o)
     if (filter === 'attention')   return !isDone(o) && !o.claimed_by
-    if (affFilter && (o.affiliate_code || '') !== affFilter) return false; if (filter === 'in-progress') return !isDone(o) && !!o.claimed_by
+    if (filter === 'in-progress') return !isDone(o) && !!o.claimed_by
     if (filter === 'done')        return isDone(o)
     return true
   })
