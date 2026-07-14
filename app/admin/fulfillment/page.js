@@ -61,7 +61,7 @@ export default function FulfillmentPage() {
   const [filter, setFilter]       = useState('active')
   const [savingIds, setSavingIds] = useState(new Set())
   const [savedFlash, setSavedFlash] = useState(0)
-  const [month, setMonth] = useState(CURRENT_MONTH)
+  const [month, setMonth] = useState(CURRENT_MONTH); const [affFilter, setAffFilter] = useState('')
 
   // ── Refs (synchronously updated, never stale) ────────────────────────────
   // Anything the polling callback or async PATCH path needs to read MUST go
@@ -321,10 +321,10 @@ export default function FulfillmentPage() {
     if (isActive(o)) acc.active++
     return acc
   }, { active: 0, attention: 0, inProgress: 0, done: 0 })
-  const filtered = orders.filter(o => {
+  const affiliateOptions = Array.from(new Set(orders.map(o => o.affiliate_code).filter(Boolean))).sort(); const filtered = orders.filter(o => {
     if (filter === 'active')      return isActive(o)
     if (filter === 'attention')   return !isDone(o) && !o.claimed_by
-    if (filter === 'in-progress') return !isDone(o) && !!o.claimed_by
+    if (affFilter && (o.affiliate_code || '') !== affFilter) return false; if (filter === 'in-progress') return !isDone(o) && !!o.claimed_by
     if (filter === 'done')        return isDone(o)
     return true
   })
@@ -429,7 +429,7 @@ export default function FulfillmentPage() {
         )}
       </div>
 
-      {/* Month picker — narrows the working set to a single calendar month */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap"><label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Affiliate:</label><select value={affFilter} onChange={e => setAffFilter(e.target.value)} className="text-sm font-bold border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-[#2196f3]"><option value="">All</option>{affiliateOptions.map(code => <option key={code} value={code}>{code}</option>)}</select></div> {/* Month picker — narrows the working set to a single calendar month */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Month:</label>
         <select
