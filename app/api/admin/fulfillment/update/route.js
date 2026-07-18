@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '../../../../../lib/adminAuth'
 import { createServerClient } from '../../../../../lib/supabase'
+import { sendPaymentConfirmedEmail } from '../../../../../lib/email'
 
 // PATCH /api/admin/fulfillment/update?key=ADMIN_PASSWORD
 // Body: { id, payment_status?, claimed_by?, fulfillment_status?, tracking_number?, notes? }
@@ -79,6 +80,23 @@ export async function PATCH(request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Fire payment-confirmed email when an order is marked paid.
+  // Fetches the full order for email fields, then sends fire-and-forget
+  // so the fulfillment app response is never delayed by email latency.
+  if (payment_status === 'paid') {
+    const { data: fullOrder } = await supabase
+      .from('orders')
+      .select('order_number, customer_name, customer_email, line_items, total')
+      .eq('id', id)
+      .single()
+    if (fullOrder?.customer_email) {
+      sendPaymentConfirmedEmail(fullOrder).catch(err =>
+        console.error('[fulfillment/update] payment-confirmed email failed:', err)
+      )
+    }
+  }
+
   return NextResponse.json(
     { ok: true, order: data },
     { headers: {
