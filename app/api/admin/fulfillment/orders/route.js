@@ -33,7 +33,7 @@ export async function GET(request) {
   const month = monthParam || (sinceParam ? null : defaultMonth)
 
   const supabase = createServerClient()
-  // Cache-buster â append a no-op filter whose value changes every call so
+  // Cache-buster — append a no-op filter whose value changes every call so
   // any HTTP-cache layer between us and PostgREST sees a unique URL and can't
   // serve a stale response. Filter is on order_number (text) so any random
   // string is safely accepted by Postgres without UUID-format validation.
