@@ -33,7 +33,7 @@ export async function GET(request) {
   const month = monthParam || (sinceParam ? null : defaultMonth)
 
   const supabase = createServerClient()
-  // Cache-buster — append a no-op filter whose value changes every call so
+  // Cache-buster â append a no-op filter whose value changes every call so
   // any HTTP-cache layer between us and PostgREST sees a unique URL and can't
   // serve a stale response. Filter is on order_number (text) so any random
   // string is safely accepted by Postgres without UUID-format validation.
@@ -64,11 +64,21 @@ export async function GET(request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Active affiliate codes -- merged into the fulfillment UI's Affiliate filter so
+  // a brand-new affiliate (no orders yet) still shows up in the dropdown right away.
+  const { data: affiliateRows, error: affError } = await supabase
+    .from('affiliates')
+    .select('code')
+    .eq('active', true)
+    .order('code', { ascending: true })
+  const affiliateCodes = affError ? [] : (affiliateRows || []).map(a => a.code)
+
   // Aggressive no-cache so the Vercel edge CDN never serves a stale snapshot
   // back to the client. Without this, peers' edits could appear to "revert"
   // because polling reads a cached pre-edit body.
   return NextResponse.json(
-    { orders: data, fetched_at: new Date().toISOString(), month, since: sinceParam || null },
+    { orders: data, affiliate_codes: affiliateCodes, fetched_at: new Date().toISOString(), month, since: sinceParam || null },
     { headers: {
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
       'CDN-Cache-Control': 'no-store',
