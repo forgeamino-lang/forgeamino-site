@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v13 Â· 2026-05-11 (notes column)'
+const PAGE_VERSION = 'v13 · 2026-05-11 (notes column)'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
@@ -21,7 +21,7 @@ const CURRENT_MONTH = MONTH_OPTIONS[0].value
 const STAFF = ['Angela', 'Mark', 'Sean', 'Amy']
 const FULFILLMENT_STATES = ['pending', 'processing', 'shipped', 'delivered']
 const PAYMENT_STATES     = ['pending', 'paid', 'failed']
-const POLL_INTERVAL_MS   = 30000   // 30s â generous, polls only catch peer edits
+const POLL_INTERVAL_MS   = 30000   // 30s — generous, polls only catch peer edits
 
 // Browser PushManager wants the public VAPID key as a Uint8Array
 function urlBase64ToUint8Array(b64) {
@@ -42,7 +42,7 @@ function rowTone(o)    { if (isDone(o)) return 'bg-green-50'
                          return 'bg-pink-50' }
 function summarizeItems(line_items) {
   if (!Array.isArray(line_items)) return ''
-  return line_items.map(li => `${li.quantity}Ã ${li.name}`).join(', ')
+  return line_items.map(li => `${li.quantity}× ${li.name}`).join(', ')
 }
 function deliverOrShip(o) {
   const m = o.shipping_address?.shipping_method
@@ -64,9 +64,9 @@ export default function FulfillmentPage() {
   const [month, setMonth] = useState(CURRENT_MONTH); const [affFilter, setAffFilter] = useState('')
   const [affiliateCodesFromDb, setAffiliateCodesFromDb] = useState([])
 
-  // ââ Refs (synchronously updated, never stale) ââââââââââââââââââââââââââââ
+  // ── Refs (synchronously updated, never stale) ────────────────────────────
   // Anything the polling callback or async PATCH path needs to read MUST go
-  // through a ref â useState values would be stale by the time the callback
+  // through a ref — useState values would be stale by the time the callback
   // fires several seconds later.
   const adminKeyRef    = useRef('')
   const savingIdsRef   = useRef(new Set())
@@ -79,7 +79,7 @@ export default function FulfillmentPage() {
   // savingIds ref is updated SYNCHRONOUSLY inside patchOrder (not via effect),
   // so the polling skip check is immune to the React render cycle.
 
-  // ââ Polling fetch ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Polling fetch ────────────────────────────────────────────────────────
   // Skips entirely under three conditions to eliminate every race vector:
   //   1) any save is in flight (savingIdsRef non-empty)
   //   2) we just saved within SAVE_COOLDOWN_MS (covers the brief window after
@@ -119,7 +119,7 @@ export default function FulfillmentPage() {
     }
   }, [])
 
-  // ââ Push notification state ââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Push notification state ──────────────────────────────────────────────
   const [pushUser, setPushUser]         = useState('')
   const [pushStatus, setPushStatus]     = useState('idle')   // idle | subscribing | subscribed | denied | unsupported | error
   const [pushSub, setPushSub]           = useState(null)
@@ -193,7 +193,7 @@ export default function FulfillmentPage() {
     }
   }
 
-  // ââ Auto-login from sessionStorage âââââââââââââââââââââââââââââââââââââââ
+  // ── Auto-login from sessionStorage ───────────────────────────────────────
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('forge-admin-key') : ''
     if (saved) {
@@ -202,8 +202,8 @@ export default function FulfillmentPage() {
     }
   }, [])
 
-  // ââ Register PWA service worker on mount âââââââââââââââââââââââââââââââââ
-  // SW only handles push notifications now â no fetch interception at all.
+  // ── Register PWA service worker on mount ─────────────────────────────────
+  // SW only handles push notifications now — no fetch interception at all.
   // When the SW switches versions and posts back 'sw-activated', force a page
   // reload so any previously-cached state from the old fetch-intercepting SW
   // is flushed.
@@ -223,8 +223,8 @@ export default function FulfillmentPage() {
     return () => navigator.serviceWorker.removeEventListener('message', onMessage)
   }, [])
 
-  // ââ Initial load + polling. Re-runs (and clears the interval) when month
-  //    changes so the new selection takes effect immediately. ââââââââââââââ
+  // ── Initial load + polling. Re-runs (and clears the interval) when month
+  //    changes so the new selection takes effect immediately. ──────────────
   useEffect(() => {
     if (!authed || !adminKey) return
     setLoading(true)
@@ -253,7 +253,7 @@ export default function FulfillmentPage() {
     setAdminKey(''); setAuthed(false); setOrders([])
   }
 
-  // ââ Update flow: optimistic â PATCH â reconcile âââââââââââââââââââââââââ
+  // ── Update flow: optimistic → PATCH → reconcile ─────────────────────────
   async function patchOrder(orderId, patch) {
     // Update ref SYNCHRONOUSLY (before any state set / await) so the next
     // polling check, even if it fires the same tick, sees an in-flight save.
@@ -274,7 +274,7 @@ export default function FulfillmentPage() {
         throw new Error(j.error || `HTTP ${res.status}`)
       }
       const j = await res.json()
-      console.log('[patchOrder]', orderId.slice(0, 8), 'sent:', patch, 'â got back:', j.order)
+      console.log('[patchOrder]', orderId.slice(0, 8), 'sent:', patch, '← got back:', j.order)
       // Stamp the cooldown BEFORE removing from savingIds, so even if polling
       // fires immediately on the savingIds-cleared render it still sees the
       // cooldown window and skips.
@@ -283,7 +283,7 @@ export default function FulfillmentPage() {
       setError('')
       setSavedFlash(Date.now())  // brief visual feedback
     } catch (e) {
-      setError(`Save failed: ${e.message} â try again`)
+      setError(`Save failed: ${e.message} — try again`)
     } finally {
       const after = new Set(savingIdsRef.current); after.delete(orderId)
       savingIdsRef.current = after
@@ -291,7 +291,7 @@ export default function FulfillmentPage() {
     }
   }
 
-  // ââ Login screen âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── Login screen ─────────────────────────────────────────────────────────
   if (!authed) {
     return (
       <div className="min-h-screen bg-[#0d1b2a] flex items-center justify-center px-4">
@@ -307,7 +307,7 @@ export default function FulfillmentPage() {
             {loginError && <p className="text-red-500 text-xs mb-3">{loginError}</p>}
             <button type="submit" disabled={loading}
               className="w-full bg-[#0d1b2a] text-white py-3 rounded-lg font-bold tracking-widest uppercase text-sm hover:bg-[#1a2e45] transition-colors disabled:opacity-50">
-              {loading ? 'Loadingâ¦' : 'Enter'}
+              {loading ? 'Loading…' : 'Enter'}
             </button>
           </form>
         </div>
@@ -339,12 +339,12 @@ export default function FulfillmentPage() {
         <div>
           <h1 className="text-xl font-bold text-[#0d1b2a] tracking-wide">Fulfillment</h1>
           <p className="text-xs text-gray-400 mt-1">
-            {orders.length} orders in {MONTH_OPTIONS.find(o => o.value === month)?.label || month} Â· syncs every 30s Â· {PAGE_VERSION}
+            {orders.length} orders in {MONTH_OPTIONS.find(o => o.value === month)?.label || month} · syncs every 30s · {PAGE_VERSION}
           </p>
         </div>
         <div className="flex items-center gap-3">
           {showSavedToast && (
-            <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded">Saved â</span>
+            <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded">Saved ✓</span>
           )}
           <button onClick={() => fetchOrders({ force: true })}
             className="text-xs text-gray-500 hover:text-[#0d1b2a] underline">Refresh</button>
@@ -360,7 +360,7 @@ export default function FulfillmentPage() {
         </div>
       )}
 
-      {/* Push notifications â collapsible row */}
+      {/* Push notifications — collapsible row */}
       <div className="bg-white rounded-lg shadow-sm p-3 mb-3">
         <button
           onClick={() => setPushUiOpen(o => !o)}
@@ -377,11 +377,11 @@ export default function FulfillmentPage() {
               {pushStatus === 'subscribed' ? `On (${pushUser})` :
                pushStatus === 'denied'     ? 'Blocked by browser' :
                pushStatus === 'unsupported'? 'Not supported here' :
-               pushStatus === 'subscribing'? 'Setting upâ¦' :
+               pushStatus === 'subscribing'? 'Setting up…' :
                'Off'}
             </span>
           </span>
-          <span className="text-gray-400">{pushUiOpen ? 'â´' : 'â¾'}</span>
+          <span className="text-gray-400">{pushUiOpen ? '▴' : '▾'}</span>
         </button>
 
         {pushUiOpen && (
@@ -402,7 +402,7 @@ export default function FulfillmentPage() {
               </span>
             ) : pushStatus === 'unsupported' ? (
               <span className="text-xs text-gray-500">
-                This browser doesn't support web push. iPhones need the page <em>installed as an app</em> via Add to Home Screen â open in Safari and install first.
+                This browser doesn't support web push. iPhones need the page <em>installed as an app</em> via Add to Home Screen — open in Safari and install first.
               </span>
             ) : (
               <>
@@ -412,7 +412,7 @@ export default function FulfillmentPage() {
                   onChange={e => setPushUser(e.target.value)}
                   className="text-sm font-bold border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-[#2196f3]"
                 >
-                  <option value="">â pick â</option>
+                  <option value="">— pick —</option>
                   {STAFF.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
                 <button
@@ -420,7 +420,7 @@ export default function FulfillmentPage() {
                   disabled={!pushUser || pushStatus === 'subscribing'}
                   className="text-xs font-bold uppercase tracking-wide bg-[#0d1b2a] hover:bg-[#1a2e45] text-white px-3 py-2 rounded-full disabled:opacity-50"
                 >
-                  {pushStatus === 'subscribing' ? 'Setting upâ¦' : 'Enable Notifications'}
+                  {pushStatus === 'subscribing' ? 'Setting up…' : 'Enable Notifications'}
                 </button>
                 <span className="text-xs text-gray-400">
                   Your phone/laptop will buzz the moment a new order is placed.
@@ -431,7 +431,7 @@ export default function FulfillmentPage() {
         )}
       </div>
 
-      <div className="flex items-center gap-3 mb-3 flex-wrap"><label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Affiliate:</label><select value={affFilter} onChange={e => setAffFilter(e.target.value)} className="text-sm font-bold border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-[#2196f3]"><option value="">All</option>{affiliateOptions.map(code => <option key={code} value={code}>{code}</option>)}</select></div> {/* Month picker â narrows the working set to a single calendar month */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap"><label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Affiliate:</label><select value={affFilter} onChange={e => setAffFilter(e.target.value)} className="text-sm font-bold border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-[#2196f3]"><option value="">All</option>{affiliateOptions.map(code => <option key={code} value={code}>{code}</option>)}</select></div> {/* Month picker — narrows the working set to a single calendar month */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Month:</label>
         <select
@@ -494,7 +494,7 @@ export default function FulfillmentPage() {
                       onChange={e => patchOrder(order.id, { claimed_by: e.target.value || null })}
                       className="text-xs border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-[#2196f3] font-bold"
                     >
-                      <option value="">â unclaimed â</option>
+                      <option value="">— unclaimed —</option>
                       {STAFF.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </td>
@@ -510,14 +510,14 @@ export default function FulfillmentPage() {
                       title="Open QBO invoice PDF"
                       className="inline-flex items-center gap-1 text-xs font-bold text-[#2196f3] hover:underline"
                     >
-                      ð PDF
+                      📄 PDF
                     </a>
                   </td>
                   <td className="px-3 py-2">
                     <p className="font-medium text-[#0d1b2a]">{order.customer_name}</p>
                     <p className="text-[11px] text-gray-500">
                       {order.customer_phone || ''}
-                      {order.shipping_address?.state ? ` Â· ${order.shipping_address.state}` : ''}
+                      {order.shipping_address?.state ? ` · ${order.shipping_address.state}` : ''}
                     </p>
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-700">
@@ -529,7 +529,7 @@ export default function FulfillmentPage() {
                         {order.customer_email}
                       </a>
                     ) : (
-                      <span className="text-gray-300">â</span>
+                      <span className="text-gray-300">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-700 max-w-[260px]">{summarizeItems(order.line_items)}</td>
@@ -560,7 +560,7 @@ export default function FulfillmentPage() {
                       defaultValue={order.notes || ''}
                       rows={2}
                       maxLength={2000}
-                      placeholder="Add a noteâ¦"
+                      placeholder="Add a note…"
                       onBlur={e => {
                         const v = e.target.value
                         if (v !== (order.notes || '')) {
@@ -579,13 +579,13 @@ export default function FulfillmentPage() {
 
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-gray-500">
         <div className="bg-pink-50 rounded-lg p-3">
-          <strong className="text-[#0d1b2a]">Pink</strong> Â· Needs someone to claim
+          <strong className="text-[#0d1b2a]">Pink</strong> · Needs someone to claim
         </div>
         <div className="bg-yellow-50 rounded-lg p-3">
-          <strong className="text-[#0d1b2a]">Yellow</strong> Â· Claimed, in progress
+          <strong className="text-[#0d1b2a]">Yellow</strong> · Claimed, in progress
         </div>
         <div className="bg-green-50 rounded-lg p-3">
-          <strong className="text-[#0d1b2a]">Green</strong> Â· Paid + shipped or delivered
+          <strong className="text-[#0d1b2a]">Green</strong> · Paid + shipped or delivered
         </div>
       </div>
     </div>
