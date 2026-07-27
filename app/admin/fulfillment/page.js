@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const PAGE_VERSION = 'v13 · 2026-05-11 (notes column)'
+const PAGE_VERSION = 'v14-ENCODING-VERIFY-1785179134920'
 
 // 12 months back from now, plus current. Used to populate the Month dropdown.
 function buildMonthOptions() {
