@@ -224,10 +224,11 @@ setLutStatus('error')
 
 function loadLutWidget(sessionId) {
 // The Lut PayByBank script doesn't auto-open on load: it exposes an
-// imperative window.PayByBankWidget.open(config) API. It also renders
-// inline (position: relative) by default and only becomes a real
-// full-screen modal overlay once its host element has the
-// "pbb-modal-mode" class, so we add that ourselves right after opening.
+// imperative window.PayByBankWidget.open(config) API. Passing
+// modalPopup: true tells the widget's own render logic to add its
+// "pbb-modal-mode" host class AND wire up click-outside-to-close —
+// both come for free from the widget itself this way (confirmed by
+// reading the widget's source), so we don't need to touch its DOM.
 function openWidget() {
 if (!window.PayByBankWidget) return
 window.PayByBankWidget.open({
@@ -236,12 +237,10 @@ lastName: form.lastName || '',
 email: form.email || '',
 sessionId,
 cartId: lutCartId,
+modalPopup: true,
 onClose: () => { checkLutCartStatus() },
-onSuccess: () => { checkLutCartStatus() },
+onError: (err) => { setLutError(err?.message || 'Something went wrong linking your bank account. Please try again.'); setLutStatus('error') },
 })
-const overlays = document.querySelectorAll('.pbb-overlay')
-const el = overlays[overlays.length - 1]
-if (el) el.classList.add('pbb-modal-mode')
 }
 
 // Remove any previous instance of the widget script before re-adding
