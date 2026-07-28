@@ -7,6 +7,7 @@ import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals } from '../../../lib/orderValidation'
 import { verifyLabCookie } from '../../../lib/labAuth'
+import { chargeLutTransaction } from '../../../lib/lut'
 
 export async function POST(request) {
 try {
@@ -25,6 +26,11 @@ tax_rate,
 total,
 affiliate_code,
 promo_code,
+lut_cart_id,
+lut_pay_token,
+lut_merchant_id,
+ach_account_last4,
+ach_routing_last4,
 } = body
 
 // Basic validation
@@ -371,6 +377,32 @@ console.error('Promo code lookup failed:', promoErr)
 }
 }
 
+// ── Charge via Lut Turbo (ACH / Pay by Bank), if that's the chosen method ──
+// This happens AFTER server-trusted totals are computed, using final_total
+// (never the client-supplied total), and BEFORE the order is written -- a
+// failed charge must never leave a phantom paid-looking order behind.
+let lut_transaction_id = null
+if (payment_method === 'lut_ach') {
+if (!lut_cart_id || !lut_pay_token || !lut_merchant_id) {
+return NextResponse.json({ error: 'Missing bank payment details — please link your bank account again.' }, { status: 400 })
+}
+const lutResult = await chargeLutTransaction({
+merchantId: lut_merchant_id,
+amount: final_total,
+cartId: lut_cart_id,
+payToken: lut_pay_token,
+})
+if (!lutResult.ok) {
+console.error('Lut Turbo transaction failed:', lutResult.error, lutResult.lutResponseCode)
+Sentry.captureException(new Error('Lut Turbo transaction failed'), {
+extra: { lut_error: lutResult.error, lut_response_code: lutResult.lutResponseCode, customer_email, order_number },
+tags: { area: 'orders', failure: 'lut-transaction' },
+})
+return NextResponse.json({ error: lutResult.error || 'Bank payment could not be completed. Please try again.' }, { status: 402 })
+}
+lut_transaction_id = lutResult.transactionId
+}
+
 // Insert order into database
 const { data, error } = await supabase
 .from('orders')
@@ -389,13 +421,19 @@ subtotal_before_discount: server_subtotal_before_discount,
 payment_method,
 line_items: validated_line_items,
 total: final_total,
-payment_status: 'pending',
+payment_status: payment_method === 'lut_ach' ? 'paid' : 'pending',
 fulfillment_status: 'pending',
 affiliate_code: affiliate_code_clean,
 affiliate_id,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
 ...(promo_code_clean ? { promo_code: promo_code_clean } : {}),
+...(payment_method === 'lut_ach' ? {
+lut_transaction_id,
+lut_cart_id,
+ach_account_last4: ach_account_last4 || null,
+ach_routing_last4: ach_routing_last4 || null,
+} : {}),
 })
 .select('id')
 .single()
