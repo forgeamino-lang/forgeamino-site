@@ -28,6 +28,10 @@ export async function POST(request) {
     const lutJson = await lutResp.json()
 
     if (lutJson.response !== 1) {
+      console.error('Lut createSession non-1 response', {
+        httpStatus: lutResp.status,
+        lutJson,
+      })
       return NextResponse.json({
         error: lutJson.responseText || 'Lut Turbo session creation failed',
         lutResponseCode: lutJson.responseCode,
