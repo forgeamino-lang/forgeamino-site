@@ -19,6 +19,7 @@ export default async function OrderConfirmationPage({ params }) {
   if (!order) notFound()
 
   const firstName = order.customer_name.split(' ')[0]
+  const isLutAch = order.payment_method === 'lut_ach'
   const subtotal = order.shipping_address.subtotal ?? order.total
   const taxAmount = order.shipping_address.tax_amount ?? 0
   const taxRate = order.shipping_address.tax_rate ?? 0
@@ -44,27 +45,49 @@ export default async function OrderConfirmationPage({ params }) {
         <p className="text-xs text-gray-400 mt-2">Save this for reference</p>
       </div>
 
-      {/* PAYMENT INSTRUCTIONS — email callout */}
-      <div className="bg-white rounded-xl border-2 border-[#ffc107] shadow-sm mb-6 overflow-hidden">
-        <div className="bg-[#ffc107] px-6 py-3">
-          <p className="font-bold text-[#0d1b2a] text-sm tracking-wide">⚠️ CHECK YOUR EMAIL TO COMPLETE PAYMENT</p>
-        </div>
-        <div className="p-6">
-          <p className="text-sm text-gray-600 mb-4">
-            We've sent full payment instructions — including the Venmo handle, amount, and required note — to <strong>{order.customer_email}</strong>.
-          </p>
-          <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
-            <span className="text-sm text-gray-500 font-medium">Amount Due</span>
-            <span className="text-xl font-bold text-[#0d1b2a]">${order.total.toFixed(2)}</span>
+      {/* PAYMENT INSTRUCTIONS / CONFIRMATION — email callout */}
+      {isLutAch ? (
+        <div className="bg-white rounded-xl border-2 border-green-500 shadow-sm mb-6 overflow-hidden">
+          <div className="bg-green-500 px-6 py-3">
+            <p className="font-bold text-white text-sm tracking-wide">✓ Payment Received</p>
           </div>
-          <div className="mt-4 bg-red-50 border-2 border-red-300 rounded-lg p-4 text-center">
-            <p className="text-red-700 font-bold text-sm leading-snug">
-              ⛔ You MUST write exactly "Thank you" in the Venmo comment.<br />
-              <span className="font-normal text-red-500 text-xs">Any other note = payment returned + order cancelled.</span>
+          <div className="p-6">
+            <p className="text-sm text-gray-600 mb-4">
+              Your payment was processed via ACH bank transfer{order.ach_account_last4 ? <> from the account ending in <strong>{order.ach_account_last4}</strong></> : null} through our payment partner, Lüt Turbo. No further action is needed — a receipt has been sent to <strong>{order.customer_email}</strong>.
             </p>
+            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+              <span className="text-sm text-gray-500 font-medium">Amount Paid</span>
+              <span className="text-xl font-bold text-[#0d1b2a]">${order.total.toFixed(2)}</span>
+            </div>
+            <div className="mt-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4">
+              <p className="text-blue-700 text-xs leading-snug">
+                ACH bank transfers typically take a few business days to fully settle. We'll email you again once your order ships.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white rounded-xl border-2 border-[#ffc107] shadow-sm mb-6 overflow-hidden">
+          <div className="bg-[#ffc107] px-6 py-3">
+            <p className="font-bold text-[#0d1b2a] text-sm tracking-wide">⚠️ CHECK YOUR EMAIL TO COMPLETE PAYMENT</p>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-gray-600 mb-4">
+              We've sent full payment instructions — including the Venmo handle, amount, and required note — to <strong>{order.customer_email}</strong>.
+            </p>
+            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+              <span className="text-sm text-gray-500 font-medium">Amount Due</span>
+              <span className="text-xl font-bold text-[#0d1b2a]">${order.total.toFixed(2)}</span>
+            </div>
+            <div className="mt-4 bg-red-50 border-2 border-red-300 rounded-lg p-4 text-center">
+              <p className="text-red-700 font-bold text-sm leading-snug">
+                ⛔ You MUST write exactly "Thank you" in the Venmo comment.<br />
+                <span className="font-normal text-red-500 text-xs">Any other note = payment returned + order cancelled.</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Order summary */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
@@ -115,12 +138,16 @@ export default async function OrderConfirmationPage({ params }) {
       <div className="bg-gray-50 rounded-xl p-6 mb-8">
         <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">What Happens Next</h2>
         <ol className="space-y-3">
-          {[
+          {(isLutAch ? [
+            'Your ACH payment has already been processed — no action needed',
+            'We prepare your order for shipment',
+            'Your order ships within 1–2 business days — you\'ll get a tracking number by email',
+          ] : [
             'Check your email for payment instructions, then send your Venmo payment with "Thank you" in the note',
             'We verify your payment (usually within a few hours during business hours)',
             'You receive a "Payment Confirmed" email once we see it',
             'Your order ships within 1–2 business days — you\'ll get a tracking number by email',
-          ].map((step, i) => (
+          ]).map((step, i) => (
             <li key={i} className="flex gap-3 text-sm text-gray-600">
               <span className="w-6 h-6 rounded-full bg-[#0d1b2a] text-white flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                 {i + 1}
