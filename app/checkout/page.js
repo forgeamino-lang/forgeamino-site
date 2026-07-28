@@ -63,6 +63,15 @@ const [affLoading, setAffLoading] = useState(false)
 const [promoPreview, setPromoPreview] = useState(null)
 const [promoLoading, setPromoLoading] = useState(false)
 
+// ── Lut Turbo (Pay by Bank / ACH) state ──────────────────────────────────
+const [lutCartId] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `cart-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+const [lutSessionId, setLutSessionId] = useState(null)
+const [lutStatus, setLutStatus] = useState('idle') // idle | loading_session | widget_open | checking_status | captured | error
+const [lutError, setLutError] = useState('')
+const [lutCapture, setLutCapture] = useState(null) // { payToken, merchantId, achAccountLast4, achRoutingLast4 }
+const LUT_WIDGET_URL = process.env.NEXT_PUBLIC_LUT_WIDGET_URL || 'https://turbo-myportal.demo.mylut.com/paybybank/payByBankWidget.js'
+
+
 // Auto-apply affiliate code from ?ref= URL param OR sessionStorage (set by AffiliateTracker in layout)
 useEffect(() => {
 const params = new URLSearchParams(window.location.search)
@@ -189,9 +198,93 @@ setPromoLoading(false)
 }
 }
 
+// ── Lut Turbo (Pay by Bank / ACH) flow ──────────────────────────────────
+// 1. createSession -> 2. load PayByBank widget -> 3. on widget close, poll
+// cart-status for the payToken -> 4. store it; handleSubmit sends it along
+// with the order so the server can charge it via the trusted total.
+async function startLutPayByBank() {
+setLutError('')
+setLutStatus('loading_session')
+try {
+const res = await fetch('/api/lut/create-session', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ cartId: lutCartId }),
+})
+const j = await res.json()
+if (!res.ok || !j.sessionId) throw new Error(j.error || 'Could not start bank payment session')
+setLutSessionId(j.sessionId)
+setLutStatus('widget_open')
+loadLutWidget(j.sessionId)
+} catch (e) {
+setLutError(e.message || 'Could not start bank payment session')
+setLutStatus('error')
+}
+}
+
+function loadLutWidget(sessionId) {
+const containerId = 'lut-turbo-widget-container'
+if (!document.getElementById(containerId)) {
+const container = document.createElement('div')
+container.id = containerId
+document.body.appendChild(container)
+}
+// Remove any previous instance of the widget script before re-adding
+const prev = document.getElementById('paybybank-script')
+if (prev) prev.remove()
+
+const script = document.createElement('script')
+script.id = 'paybybank-script'
+script.src = LUT_WIDGET_URL
+script.setAttribute('data-first-name', form.firstName || '')
+script.setAttribute('data-last-name', form.lastName || '')
+script.setAttribute('data-email', form.email || '')
+script.setAttribute('data-session-id', sessionId)
+script.setAttribute('data-cart-id', lutCartId)
+document.body.appendChild(script)
+}
+
+// Listen once for the widget closing, then fetch the resulting status/token.
+useEffect(() => {
+function onWidgetResult() {
+checkLutCartStatus()
+}
+window.addEventListener('pbb:result', onWidgetResult)
+return () => window.removeEventListener('pbb:result', onWidgetResult)
+}, [lutSessionId, lutCartId])
+
+async function checkLutCartStatus() {
+if (!lutSessionId) return
+setLutStatus('checking_status')
+try {
+const res = await fetch(`/api/lut/cart-status?sessionId=${encodeURIComponent(lutSessionId)}&cartId=${encodeURIComponent(lutCartId)}`, { cache: 'no-store' })
+const j = await res.json()
+if (!res.ok) throw new Error(j.error || 'Could not confirm bank account status')
+if (j.sessionStatus === 'CAPTURED' && j.payTokenStatus === 'ACTIVE') {
+setLutCapture({
+payToken: j.payToken,
+merchantId: j.merchantId,
+achAccountLast4: j.achAccountLast4,
+achRoutingLast4: j.achRoutingLast4,
+})
+setLutStatus('captured')
+} else {
+setLutError('Bank account was not linked — please try again.')
+setLutStatus('error')
+}
+} catch (e) {
+setLutError(e.message || 'Could not confirm bank account status')
+setLutStatus('error')
+}
+}
+
 async function handleSubmit(e) {
 e.preventDefault()
 if (cart.length === 0) return
+if (form.paymentMethod === 'lut_ach' && (lutStatus !== 'captured' || !lutCapture?.payToken)) {
+setError('Please link your bank account before placing your order.')
+return
+}
 setLoading(true)
 setError('')
 
@@ -213,6 +306,13 @@ payment_method: form.paymentMethod,
 shipping_method: form.shippingMethod,
 affiliate_code: form.affiliateCode || null,
 promo_code: form.promoCode || null,
+...(form.paymentMethod === 'lut_ach' && lutCapture ? {
+lut_cart_id: lutCartId,
+lut_pay_token: lutCapture.payToken,
+lut_merchant_id: lutCapture.merchantId,
+ach_account_last4: lutCapture.achAccountLast4,
+ach_routing_last4: lutCapture.achRoutingLast4,
+} : {}),
 line_items: cart.map(i => ({
 id: i.id,
 slug: i.slug,
@@ -407,6 +507,43 @@ You <strong>MUST</strong> write exactly <strong>"Thank you"</strong> in the Venm
 <p className="text-red-500 text-xs mt-1">
 Any other comment will result in your payment being returned and your order cannot be processed.
 </p>
+</div>
+)}
+
+
+{/* Pay by Bank (ACH via Lut Turbo) */}
+<label className={`mt-3 flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${form.paymentMethod === 'lut_ach' ? 'border-[#2196f3] bg-[#f0f7ff]' : 'border-gray-200 hover:border-gray-300'}`}>
+<input type="radio" name="paymentMethod" value="lut_ach" checked={form.paymentMethod === 'lut_ach'} onChange={handleChange} className="sr-only" />
+<div className="w-10 h-10 rounded-lg bg-[#5B4FE9] flex items-center justify-center flex-shrink-0">
+<span className="text-white font-bold text-xs">ACH</span>
+</div>
+<div>
+<p className="font-bold text-[#0d1b2a] text-sm">Pay by Bank (ACH)</p>
+<p className="text-xs text-gray-500">Link your bank account and pay directly — no manual steps after checkout</p>
+</div>
+{form.paymentMethod === 'lut_ach' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
+</label>
+
+{form.paymentMethod === 'lut_ach' && (
+<div className="mt-3 bg-[#f0f7ff] border-2 border-[#2196f3]/40 rounded-lg p-4">
+{lutStatus === 'captured' && lutCapture ? (
+<p className="text-sm font-semibold text-green-700">
+✓ Bank account linked — account ending in {lutCapture.achAccountLast4 || '••••'}, routing ending in {lutCapture.achRoutingLast4 || '••••'}
+</p>
+) : (
+<>
+<p className="text-sm text-[#0d1b2a] mb-3">Link your bank account to pay by ACH. You'll enter your account details in a secure window from our payment partner, Lüt Turbo.</p>
+<button
+type="button"
+onClick={startLutPayByBank}
+disabled={lutStatus === 'loading_session' || lutStatus === 'widget_open' || lutStatus === 'checking_status'}
+className="px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wide bg-[#0d1b2a] text-white hover:bg-[#1a2e45] disabled:opacity-50"
+>
+{lutStatus === 'loading_session' ? 'Starting…' : lutStatus === 'widget_open' ? 'Waiting for bank info…' : lutStatus === 'checking_status' ? 'Confirming…' : 'Link Bank Account'}
+</button>
+{lutError && <p className="text-red-500 text-xs mt-2">{lutError}</p>}
+</>
+)}
 </div>
 )}
 </div>
@@ -658,14 +795,14 @@ Add ${(FREE_SHIPPING_THRESHOLD - cartTotal).toFixed(2)} more for free shipping
 
 <button
 type="submit"
-disabled={loading}
+disabled={loading || (form.paymentMethod === 'lut_ach' && lutStatus !== 'captured')}
 className={`w-full py-4 rounded-full font-bold tracking-widest uppercase text-sm transition-all
-${loading
+${loading || (form.paymentMethod === 'lut_ach' && lutStatus !== 'captured')
 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
 : 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
 }`}
 >
-{loading ? 'Placing Order…' : `Place Order — $${orderTotal.toFixed(2)}`}
+{loading ? 'Placing Order…' : (form.paymentMethod === 'lut_ach' && lutStatus !== 'captured') ? 'Link Bank Account First' : `Place Order — $${orderTotal.toFixed(2)}`}
 </button>
 
 <p className="text-xs text-gray-400 text-center mt-3">
