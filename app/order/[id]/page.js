@@ -35,7 +35,7 @@ export default async function OrderConfirmationPage({ params }) {
           <span className="text-green-600 text-3xl">✓</span>
         </div>
         <h1 className="text-2xl font-bold text-[#0d1b2a] tracking-wide mb-2">Order Received, {firstName}!</h1>
-        <p className="text-gray-500">Check your email at <strong>{order.customer_email}</strong> for a copy of these instructions.</p>
+        <p className="text-gray-500">Check your email at <strong>{order.customer_email}</strong> for a copy of {isLutAch ? 'your receipt' : 'these instructions'}.</p>
       </div>
 
       {/* Order number */}
