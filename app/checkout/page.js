@@ -137,6 +137,12 @@ const taxAmount = Math.round(subtotalAfter * combinedRate * 100) / 100
 // Tax base stays on subtotal only — shipping is not taxed.
 const shippingAmount = computeShipping(cartTotal, form.shippingMethod)
 const orderTotal = subtotalAfter + taxAmount + shippingAmount
+// Lut Turbo charges 3.95% + $0.30 per ACH transaction. Passed through to
+// the customer as a surcharge (disclosed before they link their bank
+// account) rather than silently absorbed — mirrors the server-side
+// calculation in app/api/orders/route.js.
+const lutFeeAmount = form.paymentMethod === 'lut_ach' ? Math.round((orderTotal * 0.0395 + 0.30) * 100) / 100 : 0
+const grandTotal = orderTotal + lutFeeAmount
 
 function handleChange(e) {
 setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -529,7 +535,7 @@ Any other comment will result in your payment being returned and your order cann
 </div>
 <div>
 <p className="font-bold text-[#0d1b2a] text-sm">Pay by Bank (ACH)</p>
-<p className="text-xs text-gray-500">Link your bank account and pay directly — no manual steps after checkout</p>
+<p className="text-xs text-gray-500">Link your bank account and pay directly — a 3.95% + $0.30 processing fee applies</p>
 </div>
 {form.paymentMethod === 'lut_ach' && <span className="ml-auto text-[#2196f3] font-bold text-lg">✓</span>}
 </label>
@@ -537,12 +543,16 @@ Any other comment will result in your payment being returned and your order cann
 {form.paymentMethod === 'lut_ach' && (
 <div className="mt-3 bg-[#f0f7ff] border-2 border-[#2196f3]/40 rounded-lg p-4">
 {lutStatus === 'captured' && lutCapture ? (
+<>
 <p className="text-sm font-semibold text-green-700">
 ✓ Bank account linked — account ending in {lutCapture.achAccountLast4 || '••••'}, routing ending in {lutCapture.achRoutingLast4 || '••••'}
 </p>
+<p className="text-xs text-gray-500 mt-1">Your bank account will be charged ${grandTotal.toFixed(2)}, which includes a ${lutFeeAmount.toFixed(2)} ACH processing fee (3.95% + $0.30).</p>
+</>
 ) : (
 <>
 <p className="text-sm text-[#0d1b2a] mb-3">Link your bank account to pay by ACH. You'll enter your account details in a secure window from our payment partner, Lüt Turbo.</p>
+<p className="text-xs text-gray-500 mb-3">A processing fee of 3.95% + $0.30 (${lutFeeAmount.toFixed(2)} on this order) is added by our ACH payment partner, bringing your total to ${grandTotal.toFixed(2)}.</p>
 <button
 type="button"
 onClick={startLutPayByBank}
@@ -796,9 +806,19 @@ Add ${(FREE_SHIPPING_THRESHOLD - cartTotal).toFixed(2)} more for free shipping
 </p>
 )}
 
+{form.paymentMethod === 'lut_ach' && (
+<div className="flex justify-between items-center text-sm">
+<span className="text-gray-600 flex items-center gap-1">
+ACH Processing Fee
+<span className="text-xs text-gray-400">(3.95% + $0.30)</span>
+</span>
+<span className="text-gray-700">${lutFeeAmount.toFixed(2)}</span>
+</div>
+)}
+
 <div className="flex justify-between items-center pt-2 border-t border-gray-100">
 <span className="font-bold text-[#0d1b2a]">Total</span>
-<span className="font-bold text-[#0d1b2a] text-xl">${orderTotal.toFixed(2)}</span>
+<span className="font-bold text-[#0d1b2a] text-xl">${grandTotal.toFixed(2)}</span>
 </div>
 <p className="text-xs text-gray-400 text-center">All orders ship to the United States only.</p>
 </div>
@@ -812,11 +832,13 @@ ${loading || (form.paymentMethod === 'lut_ach' && lutStatus !== 'captured')
 : 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
 }`}
 >
-{loading ? 'Placing Order…' : (form.paymentMethod === 'lut_ach' && lutStatus !== 'captured') ? 'Link Bank Account First' : `Place Order — $${orderTotal.toFixed(2)}`}
+{loading ? 'Placing Order…' : (form.paymentMethod === 'lut_ach' && lutStatus !== 'captured') ? 'Link Bank Account First' : `Place Order — $${grandTotal.toFixed(2)}`}
 </button>
 
 <p className="text-xs text-gray-400 text-center mt-3">
-No payment taken now. You'll send Venmo after checkout.
+{form.paymentMethod === 'lut_ach'
+? `Your bank account will be charged $${grandTotal.toFixed(2)}, including a $${lutFeeAmount.toFixed(2)} ACH processing fee.`
+: "No payment taken now. You'll send Venmo after checkout."}
 </p>
 
 <p className="text-xs text-gray-500 text-center mt-2">

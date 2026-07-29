@@ -26,6 +26,7 @@ export default async function OrderConfirmationPage({ params }) {
   const shippingAmount = Number(order.shipping_address.shipping_amount ?? 0)
   const shippingMethod = order.shipping_address.shipping_method
   const shippingLabel = 'FedEx 2-Day'
+  const achFeeAmount = Number(order.ach_fee_amount ?? order.shipping_address.ach_fee_amount ?? 0)
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
@@ -59,6 +60,9 @@ export default async function OrderConfirmationPage({ params }) {
               <span className="text-sm text-gray-500 font-medium">Amount Paid</span>
               <span className="text-xl font-bold text-[#0d1b2a]">${order.total.toFixed(2)}</span>
             </div>
+            {achFeeAmount > 0 && (
+              <p className="text-xs text-gray-400 mt-2">Includes a ${achFeeAmount.toFixed(2)} ACH processing fee (3.95% + $0.30) charged by our payment partner, Lüt Turbo.</p>
+            )}
             <div className="mt-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4">
               <p className="text-blue-700 text-xs leading-snug">
                 ACH bank transfers typically take a few business days to fully settle. We'll email you again once your order ships.
@@ -115,6 +119,12 @@ export default async function OrderConfirmationPage({ params }) {
             <div className="flex justify-between text-sm text-gray-500">
               <span>Shipping ({shippingLabel})</span>
               <span>{shippingAmount === 0 ? <span className="text-green-600 font-semibold">FREE</span> : `$${shippingAmount.toFixed(2)}`}</span>
+            </div>
+          )}
+          {achFeeAmount > 0 && (
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>ACH Processing Fee (3.95% + $0.30)</span>
+              <span>${achFeeAmount.toFixed(2)}</span>
             </div>
           )}
           <div className="flex justify-between font-bold pt-2 border-t">

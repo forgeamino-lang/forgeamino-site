@@ -382,10 +382,20 @@ console.error('Promo code lookup failed:', promoErr)
 // (never the client-supplied total), and BEFORE the order is written -- a
 // failed charge must never leave a phantom paid-looking order behind.
 let lut_transaction_id = null
+let ach_fee_amount = 0
 if (payment_method === 'lut_ach') {
 if (!lut_cart_id || !lut_pay_token || !lut_merchant_id) {
 return NextResponse.json({ error: 'Missing bank payment details — please link your bank account again.' }, { status: 400 })
 }
+// Lut Turbo charges us 3.95% + $0.30 per ACH transaction. We pass this
+// through to the customer as a surcharge (disclosed on the checkout page
+// before they link their bank account) rather than silently absorbing it.
+// Computed on the trusted final_total, which already reflects
+// discounts/tax/shipping, then folded into final_total so the DB record,
+// confirmation email, and the actual bank charge all agree.
+ach_fee_amount = Number((final_total * 0.0395 + 0.30).toFixed(2))
+final_total = Number((final_total + ach_fee_amount).toFixed(2))
+
 const lutResult = await chargeLutTransaction({
 merchantId: lut_merchant_id,
 amount: final_total,
@@ -417,6 +427,7 @@ subtotal: final_subtotal,
 tax_amount: final_tax_amount,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
+...(payment_method === 'lut_ach' ? { ach_fee_amount } : {}),
 },
 payment_method,
 line_items: validated_line_items,
@@ -536,6 +547,7 @@ subtotal: final_subtotal,
 tax_amount: final_tax_amount,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
+...(payment_method === 'lut_ach' ? { ach_fee_amount } : {}),
 },
 payment_method,
 line_items: validated_line_items,
@@ -545,6 +557,7 @@ tax_rate: trusted_tax_rate,
 shipping_method: trusted_shipping_method,
 shipping_amount: server_shipping_amount,
 total: final_total,
+ach_fee_amount,
 affiliate_code: affiliate_code_clean,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
