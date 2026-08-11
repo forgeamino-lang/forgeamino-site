@@ -519,6 +519,11 @@ export default function FulfillmentPage() {
                       {order.customer_phone || ''}
                       {order.shipping_address?.state ? ` · ${order.shipping_address.state}` : ''}
                     </p>
+                    {order.customer_dob && (
+                      <p className="text-[11px] text-gray-500">
+                        DOB: {new Date(order.customer_dob + 'T00:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC' })}
+                      </p>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs text-gray-700">
                     {order.customer_email ? (

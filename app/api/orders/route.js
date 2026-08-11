@@ -5,7 +5,7 @@ import { syncToQuickBooks } from '../../../lib/quickbooks'
 import { broadcastOrderNotification } from '../../../lib/pushNotify'
 import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
-import { validateLineItems, computeOrderTotals } from '../../../lib/orderValidation'
+import { validateLineItems, computeOrderTotals, requiresDateOfBirth, validateDateOfBirth } from '../../../lib/orderValidation'
 import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
 
@@ -31,6 +31,7 @@ lut_pay_token,
 lut_merchant_id,
 ach_account_last4,
 ach_routing_last4,
+date_of_birth,
 } = body
 
 // Basic validation
@@ -48,6 +49,19 @@ if (!v.ok) {
 return NextResponse.json({ error: v.error }, { status: v.status })
 }
 const validated_line_items = v.validated
+
+// ── Date of birth (Compounded Pharmacy / LAB prescription items) ────────
+// The pharmacy requires DOB on file for any order containing a compounded
+// prescription product. Enforced server-side so it can't be bypassed by
+// skipping the checkout UI field.
+let customer_dob = null
+if (requiresDateOfBirth(validated_line_items)) {
+const dobCheck = validateDateOfBirth(date_of_birth)
+if (!dobCheck.ok) {
+return NextResponse.json({ error: dobCheck.error }, { status: 400 })
+}
+customer_dob = dobCheck.value
+}
 
 // Server-trusted totals — subtotal from catalog prices, tax_rate from client.
 const {
@@ -421,6 +435,7 @@ order_number,
 customer_name,
 customer_email,
 customer_phone,
+customer_dob,
 shipping_address: {
 ...shipping_address_with_tax,
 subtotal: final_subtotal,

@@ -7,6 +7,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../lib/shipping'
+import { getProductBySlug } from '../../lib/products'
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -17,6 +18,10 @@ const US_STATES = [
 
 export default function CheckoutPage() {
 const { cart, cartTotal, clearCart } = useCart()
+
+// Compounded Pharmacy (LAB "prescription") products require DOB capture
+// at checkout per pharmacy/compliance request.
+const requiresDob = cart.some(i => getProductBySlug(i.slug)?.prescription)
 const router = useRouter()
 const { user, isSignedIn } = useUser()
 
@@ -53,6 +58,7 @@ paymentMethod: 'venmo',
 shippingMethod: 'fedex_2day',
 affiliateCode: '',
   promoCode: '',
+  dob: '',
 })
 
 // Live tax rate from TaxJar (includes state + county + city)
@@ -301,6 +307,10 @@ if (form.paymentMethod === 'lut_ach' && (lutStatus !== 'captured' || !lutCapture
 setError('Please link your bank account before placing your order.')
 return
 }
+if (requiresDob && !form.dob) {
+setError('Date of birth is required to order Compounded Pharmacy products.')
+return
+}
 setLoading(true)
 setError('')
 
@@ -322,6 +332,7 @@ payment_method: form.paymentMethod,
 shipping_method: form.shippingMethod,
 affiliate_code: form.affiliateCode || null,
 promo_code: form.promoCode || null,
+date_of_birth: form.dob || null,
 ...(form.paymentMethod === 'lut_ach' && lutCapture ? {
 lut_cart_id: lutCartId,
 lut_pay_token: lutCapture.payToken,
@@ -437,6 +448,15 @@ className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ou
 <input name="phone" type="tel" value={form.phone} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
+{requiresDob && (
+<div className="mt-4">
+<label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Date of Birth *</label>
+<input name="dob" type="date" required value={form.dob} onChange={handleChange}
+max={new Date().toISOString().slice(0, 10)}
+className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
+<p className="text-[11px] text-gray-500 mt-1">Required for Compounded Pharmacy items in your cart.</p>
+</div>
+)}
 </div>
 
 {/* Shipping address */}
