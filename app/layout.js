@@ -87,10 +87,28 @@ export const metadata = {
   },
 }
 
+const TRYBE_PIXEL_SNIPPET = `
+(function(w,d,p,s,u,pl,at) {
+  w._trybe = w._trybe || { pixelCode: p, storeId: s, platform: pl, autoTracking: at, customDomain: 'track.forgeamino.com', serviceUrl: 'https://prod-trybe-platform-6mi3j.ondigitalocean.app/attribution' };
+  var script = d.createElement('script');
+  script.src = u + '/pixel.js';
+  script.async = true;
+  script.setAttribute('data-pixel-code', p);
+  script.setAttribute('data-store-id', s);
+  script.setAttribute('data-platform', pl);
+  script.setAttribute('data-auto-tracking', at);
+  d.head.appendChild(script);
+})(window, document, 'px_cef586bf1865', 'f75dc740-f16b-44f8-adf5-9afa6866c60b', 'https://track.forgeamino.com', 'CUSTOM', 'false');
+`
+
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider>
       <html lang="en">
+        <head>
+          {/* Trybe Attribution Pixel (Custom Domain) */}
+          <script dangerouslySetInnerHTML={{ __html: TRYBE_PIXEL_SNIPPET }} />
+        </head>
         <body>
           <AgeGate />
           <AffiliateTracker />
