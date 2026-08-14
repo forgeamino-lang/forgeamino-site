@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals, requiresDateOfBirth, validateDateOfBirth } from '../../../lib/orderValidation'
 import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
+import { submitOrderToTrybe, getTrybeVisitorId } from '../../../lib/trybe'
 
 export async function POST(request) {
 try {
@@ -578,12 +579,14 @@ discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
 }
 
-// Fan out three independent side effects:
+// Fan out independent side effects:
 // 1. Customer order confirmation (Resend)
 // 2. Admin "order received" alert — fires regardless of QBO health, so we
 // never go blind on orders again when token rotation breaks
 // 3. QuickBooks invoice sync (which itself sends the PDF email on success)
+// 4. Trybe creator-attribution order report (no-op if no visitor id cookie)
 // None of these can fail the order — they're all .catch'd to Sentry/console.
+const trybe_vid = getTrybeVisitorId(request)
 const [confirmResult] = await Promise.all([
 sendOrderConfirmationEmail(order).catch(e => { console.error('Customer email failed:', e); return null; }),
 sendOrderReceivedAlert(order).catch(e => {
@@ -603,7 +606,14 @@ tags: { area: 'orders', failure: 'quickbooks-sync' },
 broadcastOrderNotification(order).catch(e => {
 console.error('Push notification broadcast failed:', e?.message)
 // Notification is best-effort — never block or fail the order
+}),
+submitOrderToTrybe(order, trybe_vid).catch(e => {
+console.error('Trybe order submission failed:', { order_number, error: e?.message })
+Sentry.captureException(e, {
+extra: { order_number, customer_email },
+tags: { area: 'orders', failure: 'trybe-attribution' },
 })
+}),
 ])
 // Track whether confirmation email succeeded
 await supabase.from('orders').update(
