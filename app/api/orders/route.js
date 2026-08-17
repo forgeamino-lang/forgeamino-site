@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, generateOrderNumber } from '../../../lib/supabase'
 import { sendOrderConfirmationEmail, sendOrderReceivedAlert } from '../../../lib/email'
-import { syncToQuickBooks } from '../../../lib/quickbooks'
+import { syncToQuickBooks, checkInvoiceDocNumberExists, getAccessToken } from '../../../lib/quickbooks'
 import { broadcastOrderNotification } from '../../../lib/pushNotify'
 import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
@@ -85,7 +85,14 @@ client_tax: tax_amount, server_tax: server_tax_amount,
 }
 
 const supabase = createServerClient()
-const order_number = generateOrderNumber()
+const order_number = await generateOrderNumber(supabase, {
+checkQbo: async (candidate) => {
+const realmId = process.env.QBO_REALM_ID
+if (!realmId) return false
+const token = await getAccessToken()
+return checkInvoiceDocNumberExists(token, realmId, candidate)
+},
+})
 
 // Embed tax data in shipping_address JSONB to avoid schema changes
 const shipping_address_with_tax = {
@@ -615,11 +622,20 @@ tags: { area: 'orders', failure: 'trybe-attribution' },
 })
 }),
 ])
-// Track whether confirmation email succeeded
+// Track whether confirmation email succeeded.
+// The Resend SDK (v3.5.0) resolves with { data: { id }, error } rather than
+// throwing on API-level failures, and returns the id nested under `data`
+// -- not at the top level. Checking `confirmResult?.id` (as this used to)
+// is always undefined regardless of outcome, so every order was getting
+// mislabeled with confirmation_error even though Resend's own logs show
+// the emails were actually delivered (confirmed via the Resend dashboard,
+// Aug 2026). Check confirmResult?.data?.id instead, and surface the real
+// error message when Resend does report one.
+const resendId = confirmResult?.data?.id
 await supabase.from('orders').update(
-confirmResult?.id
-? { confirmation_sent_at: new Date().toISOString(), confirmation_resend_id: confirmResult.id }
-: { confirmation_error: 'send failed — check Resend logs' }
+resendId
+? { confirmation_sent_at: new Date().toISOString(), confirmation_resend_id: resendId }
+: { confirmation_error: confirmResult?.error?.message || 'send failed — check Resend logs' }
 ).eq('order_number', order_number)
 
 return NextResponse.json({ orderId: data.id, orderNumber: order_number })
