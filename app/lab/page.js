@@ -53,10 +53,13 @@ export default function LabPage() {
   //   labOnly      : hidden && !prescription   (R / S / T -- Restricted Access)
   //   prescription : hidden && prescription    (compounded Rx from 503a/503b)
   //   regular      : !hidden                   (Standard Catalog -- Shop mirror)
-  const inStockOrSoon = p => p.inStock || p.price === 0
-  const labOnly      = PRODUCTS.filter(p => inStockOrSoon(p) && p.hidden && !p.prescription)
-  const prescription = PRODUCTS.filter(p => inStockOrSoon(p) && p.hidden &&  p.prescription)
-  const regular      = PRODUCTS.filter(p => inStockOrSoon(p) && !p.hidden)
+  // Note: out-of-stock items stay listed here (with COA links + an "Out of
+  // Stock" badge handled in LabProductCard/ProductCard) rather than being
+  // dropped from the page — Lab customers still need access to COAs for
+  // products that are temporarily unavailable.
+  const labOnly      = PRODUCTS.filter(p => p.hidden && !p.prescription)
+  const prescription = PRODUCTS.filter(p => p.hidden &&  p.prescription)
+  const regular      = PRODUCTS.filter(p => !p.hidden)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
