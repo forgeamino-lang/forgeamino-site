@@ -18,7 +18,7 @@ export const metadata = {
     template: '%s | Forge Amino',
   },
   description: 'High-quality research peptides from Forge Amino. Every compound is independently third-party tested in a US laboratory with verified 99%+ purity. For research purposes only.',
-  keywords: ['research peptides', 'BPC-157', 'TB-500', 'CJC-1295', 'Ipamorelin', 'Semaglutide', 'peptide supplier', 'third party tested peptides'],
+  keywords: ['research peptides', 'BPC-157', 'TB-500', 'CJC-1295', 'Ipamorelin', 'peptide supplier', 'third party tested peptides'],
   authors: [{ name: 'Forge Amino' }],
   creator: 'Forge Amino',
   publisher: 'Forge Amino',

@@ -5,7 +5,7 @@ import { getSaleActive } from '../../lib/siteConfig'
 
 export const metadata = {
   title: 'Shop Research Peptides',
-  description: 'Browse our full catalog of research peptides  BPC-157, TB-500, Semaglutide, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
+  description: 'Browse our full catalog of research peptides  BPC-157, TB-500, CJC-1295, Ipamorelin, GHK-Cu, and more. All independently third-party lab tested with 99%+ purity.',
   alternates: {
     canonical: 'https://www.forgeamino.com/shop',
   },
