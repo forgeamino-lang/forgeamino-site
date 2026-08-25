@@ -407,16 +407,6 @@ Sign in
 </div>
 </SignedIn>
 </div>
-{/* ── CUSTOM REQUEST BANNER ── */}
-<div className="bg-[#f0f7ff] border border-[#2196f3]/30 rounded-lg p-4 mb-6 flex items-start gap-3">
-<span className="text-lg flex-shrink-0">💬</span>
-<p className="text-sm text-[#0d1b2a]">
-<span className="font-bold">Don&apos;t see a product you&apos;re interested in?</span>{' '}
-We&apos;re happy to help source it —{' '}
-<Link href="/contact" className="text-[#2196f3] font-bold hover:underline">contact us →</Link>
-</p>
-</div>
-
 <form onSubmit={handleSubmit}>
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
 
