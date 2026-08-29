@@ -433,18 +433,18 @@ Sign in
 <div className="grid grid-cols-2 gap-4">
 <div>
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">First Name *</label>
-<input name="firstName" required value={form.firstName} onChange={handleChange}
+<input name="firstName" autoComplete="given-name" required value={form.firstName} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
 <div>
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Last Name *</label>
-<input name="lastName" required value={form.lastName} onChange={handleChange}
+<input name="lastName" autoComplete="family-name" required value={form.lastName} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
 </div>
 <div className="mt-4">
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Email Address *</label>
-<input name="email" type="email" required value={form.email} onChange={handleChange} onBlur={handleEmailBlur}
+<input name="email" type="email" autoComplete="email" required value={form.email} onChange={handleChange} onBlur={handleEmailBlur}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 {emailCheck?.suggestion && (
 <p className="text-xs text-amber-700 mt-1.5">
@@ -462,7 +462,7 @@ This email address doesn&apos;t look quite right — please double-check it for 
 </div>
 <div className="mt-4">
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Phone Number</label>
-<input name="phone" type="tel" value={form.phone} onChange={handleChange}
+<input name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
 {requiresDob && (
@@ -481,19 +481,19 @@ className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ou
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Shipping Address</h2>
 <div>
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Street Address *</label>
-<input name="street" required value={form.street} onChange={handleChange}
+<input name="street" autoComplete="street-address" required value={form.street} onChange={handleChange}
 placeholder="123 Main St, Apt 4"
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
 <div className="grid grid-cols-2 gap-4 mt-4">
 <div>
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">City *</label>
-<input name="city" required value={form.city} onChange={handleChange}
+<input name="city" autoComplete="address-level2" required value={form.city} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
 <div>
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">State *</label>
-<select name="state" required value={form.state} onChange={handleChange}
+<select name="state" autoComplete="address-level1" required value={form.state} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3] bg-white">
 <option value="">Select</option>
 {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -502,7 +502,7 @@ className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ou
 </div>
 <div className="mt-4">
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">ZIP Code *</label>
-<input name="zip" required value={form.zip} onChange={handleChange}
+<input name="zip" autoComplete="postal-code" required value={form.zip} onChange={handleChange}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
 </div>
 </div>
