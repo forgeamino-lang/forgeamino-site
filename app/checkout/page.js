@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../lib/shipping'
 import { getProductBySlug } from '../../lib/products'
+import { suggestEmailCorrection } from '../../lib/emailCheck'
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -45,6 +46,7 @@ zip: prev.zip || saved.zip || '',
 
 const [loading, setLoading] = useState(false)
 const [error, setError] = useState('')
+const [emailCheck, setEmailCheck] = useState(null) // { suggestion } | { warning: true } | null
 const [form, setForm] = useState({
 firstName: '',
 lastName: '',
@@ -154,6 +156,18 @@ function handleChange(e) {
 setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 if (e.target.name === 'affiliateCode') setAffPreview(null)
 if (e.target.name === 'promoCode') setPromoPreview(null)
+if (e.target.name === 'email') setEmailCheck(null)
+}
+
+function handleEmailBlur() {
+setEmailCheck(suggestEmailCorrection(form.email))
+}
+
+function acceptEmailSuggestion() {
+if (emailCheck?.suggestion) {
+setForm(f => ({ ...f, email: emailCheck.suggestion }))
+}
+setEmailCheck(null)
 }
 
 async function applyAffiliateCode() {
@@ -430,8 +444,21 @@ className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ou
 </div>
 <div className="mt-4">
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Email Address *</label>
-<input name="email" type="email" required value={form.email} onChange={handleChange}
+<input name="email" type="email" required value={form.email} onChange={handleChange} onBlur={handleEmailBlur}
 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-[#2196f3] focus:ring-1 focus:ring-[#2196f3]" />
+{emailCheck?.suggestion && (
+<p className="text-xs text-amber-700 mt-1.5">
+Did you mean <strong>{emailCheck.suggestion}</strong>?{' '}
+<button type="button" onClick={acceptEmailSuggestion} className="underline font-semibold hover:text-amber-900">
+Use this
+</button>
+</p>
+)}
+{emailCheck?.warning && (
+<p className="text-xs text-amber-700 mt-1.5">
+This email address doesn&apos;t look quite right — please double-check it for typos before continuing.
+</p>
+)}
 </div>
 <div className="mt-4">
 <label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Phone Number</label>
