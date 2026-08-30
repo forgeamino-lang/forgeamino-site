@@ -24,12 +24,19 @@ export default async function ShopPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
 
       {saleActive && (
-        <div style={{ background: '#FF1F6E' }} className="w-full rounded-xl p-4 mb-8 text-center">
+        <div
+          style={{
+            backgroundImage:
+              'radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.5px), linear-gradient(90deg, #B22234 0%, #0A1F44 50%, #B22234 100%)',
+            backgroundSize: '18px 18px, 100% 100%',
+          }}
+          className="w-full rounded-xl p-4 mb-8 text-center border-2 border-white/40"
+        >
           <p className="text-white font-bold tracking-wide text-sm sm:text-base">
-            🔥 Start of Summer Sale — 15% off everything with code{' '}
-            <span style={{ background: '#AAFF00', color: '#1a3300' }}
-              className="inline-block font-black px-3 py-1 rounded-full text-sm tracking-widest mx-1">
-              SUMMER15
+            🇺🇸 Labor Day Sale — 30% off everything with code{' '}
+            <span style={{ background: '#ffffff', color: '#B22234' }}
+              className="inline-block font-black px-3 py-1 rounded-full text-sm tracking-widest mx-1 border border-[#0A1F44]">
+              LABORDAY30
             </span>
           </p>
         </div>

@@ -4,15 +4,22 @@ export default async function SaleBanner() {
   const saleActive = await getSaleActive()
   if (!saleActive) return null
   return (
-    <div style={{ background: '#FF1F6E' }} className="w-full py-2.5 px-4 text-center text-white text-sm font-semibold tracking-wide">
-      {'\ud83d\udd25'} Start of Summer Sale — Use code{' '}
+    <div
+      style={{
+        backgroundImage:
+          'radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1.5px), linear-gradient(90deg, #B22234 0%, #0A1F44 50%, #B22234 100%)',
+        backgroundSize: '18px 18px, 100% 100%',
+      }}
+      className="w-full py-2.5 px-4 text-center text-white text-sm font-semibold tracking-wide border-y-2 border-white/30"
+    >
+      {'🇺🇸'} LABOR DAY SALE — Use code{' '}
       <span
-        style={{ background: '#AAFF00', color: '#1a3300' }}
-        className="inline-block font-black px-2.5 py-0.5 rounded-full text-xs tracking-widest mx-1"
+        style={{ background: '#ffffff', color: '#B22234' }}
+        className="inline-block font-black px-2.5 py-0.5 rounded-full text-xs tracking-widest mx-1 border border-[#0A1F44]"
       >
-        SUMMER15
+        LABORDAY30
       </span>
-      {' '}for <strong>15% off</strong> your entire order
+      {' '}for <strong>30% off</strong> your entire order
     </div>
   )
 }

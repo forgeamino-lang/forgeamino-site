@@ -40,9 +40,9 @@ export default async function Home() {
             {/* Badge pills */}
             <div className="flex flex-wrap gap-2 mb-5">
               {saleActive && (
-                <span style={{ background: '#AAFF00', color: '#1a3300' }}
-                  className="inline-block font-black px-3 py-1.5 rounded-full text-xs tracking-widest whitespace-nowrap">
-                  🔥 15% OFF — SUMMER15
+                <span style={{ background: '#ffffff', color: '#B22234' }}
+                  className="inline-block font-black px-3 py-1.5 rounded-full text-xs tracking-widest whitespace-nowrap border-2 border-[#0A1F44]">
+                  🇺🇸 30% OFF — LABORDAY30
                 </span>
               )}
               {['Third Party Lab Tested', 'Fast Shipping', 'Free Shipping on $250+'].map((badge) => (
@@ -84,11 +84,11 @@ export default async function Home() {
             {saleActive && (
               <p className="text-white/90 text-sm font-semibold mt-3">
                 Use code{' '}
-                <span style={{ background: '#AAFF00', color: '#1a3300' }}
-                  className="font-black px-2 py-0.5 rounded-full text-xs tracking-widest">
-                  SUMMER15
+                <span style={{ background: '#ffffff', color: '#B22234' }}
+                  className="font-black px-2 py-0.5 rounded-full text-xs tracking-widest border border-[#0A1F44]">
+                  LABORDAY30
                 </span>
-                {' '}for 15% off
+                {' '}for 30% off — Labor Day Sale
               </p>
             )}
           </div>
