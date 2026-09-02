@@ -8,6 +8,7 @@ import AgeGate from '../components/AgeGate'
 import { Analytics } from '@vercel/analytics/next'
 import AffiliateTracker from '../components/AffiliateTracker'
 import SaleBanner from '../components/SaleBanner'
+import Script from 'next/script'
 
 const BASE_URL = 'https://www.forgeamino.com'
 
@@ -106,6 +107,20 @@ export default function RootLayout({ children }) {
     <ClerkProvider>
       <html lang="en">
         <head>
+          {/* Google tag (gtag.js) — Google Ads (AW-18415687827) */}
+          <Script
+            async
+            src="https://www.googletagmanager.com/gtag/js?id=AW-18415687827"
+            strategy="afterInteractive"
+          />
+          <Script id="google-tag-gtag" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'AW-18415687827');
+            `}
+          </Script>
           {/* Trybe Attribution Pixel (Custom Domain) */}
           <script dangerouslySetInnerHTML={{ __html: TRYBE_PIXEL_SNIPPET }} />
         </head>
