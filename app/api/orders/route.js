@@ -341,12 +341,35 @@ final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount
 // ── Apply promo code discount (stacks on top of any affiliate discount) ─
 // Supports one-time-per-customer codes (one_time_per_customer = true).
 // If the code has affiliated_with set, using it also locks attribution.
+//
+// If the customer didn't type their own promo code, fall back to the
+// resolved affiliate's linked_promo_code (if any). This lets a referral
+// code used only via ?ref= (e.g. ANGIEPEPS) transparently grant a linked
+// one-time customer discount (e.g. ANGIEPEPS10) without the customer having
+// to separately type a second code -- the one-time-per-customer /
+// affiliated_with machinery below is unchanged and still gates it correctly.
 let promo_code_clean = null
 let promo_one_time = false
 let promo_affiliated_with = null
 let promo_discount_applied = false
-if (typeof promo_code === 'string') {
-const promo_raw = promo_code.trim()
+let effective_promo_raw = typeof promo_code === 'string' ? promo_code.trim() : ''
+if (!effective_promo_raw && affiliate_code_clean) {
+try {
+const { data: linked } = await supabase
+.from('affiliates')
+.select('linked_promo_code')
+.ilike('code', affiliate_code_clean)
+.eq('active', true)
+.maybeSingle()
+if (linked?.linked_promo_code) {
+effective_promo_raw = String(linked.linked_promo_code).trim()
+}
+} catch (linkedPromoErr) {
+console.error('Linked promo code lookup failed:', linkedPromoErr)
+}
+}
+{
+const promo_raw = effective_promo_raw
 if (promo_raw.length > 0) {
 try {
 const { data: promo } = await supabase
