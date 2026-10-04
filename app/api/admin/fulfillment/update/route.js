@@ -70,6 +70,19 @@ export async function PATCH(request) {
   }
 
   const supabase = createServerClient()
+
+  // Read the prior payment status so the payment-confirmed email only fires on
+  // a real transition to 'paid' (re-selecting 'paid' must not re-email).
+  let prevPaymentStatus = null
+  if (payment_status === 'paid') {
+    const { data: prev } = await supabase
+      .from('orders')
+      .select('payment_status')
+      .eq('id', id)
+      .single()
+    prevPaymentStatus = prev?.payment_status ?? null
+  }
+
   const { data, error } = await supabase
     .from('orders')
     .update(patch)
@@ -81,24 +94,43 @@ export async function PATCH(request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Fire payment-confirmed email when an order is marked paid.
-  // Fetches the full order for email fields, then sends fire-and-forget
-  // so the fulfillment app response is never delayed by email latency.
-  if (payment_status === 'paid') {
+  // Send the payment-confirmed email when an order transitions to 'paid'.
+  // AWAITED on purpose: on Vercel a fire-and-forget promise can be frozen as
+  // soon as the response is returned, silently dropping the email. Resend v3
+  // also returns { data, error } instead of throwing, so check error explicitly.
+  // Outcome is recorded on the order (payment_email_*) so it can be audited.
+  let payment_email = null
+  if (payment_status === 'paid' && prevPaymentStatus !== 'paid') {
     const { data: fullOrder } = await supabase
       .from('orders')
       .select('order_number, customer_name, customer_email, line_items, total')
       .eq('id', id)
       .single()
     if (fullOrder?.customer_email) {
-      sendPaymentConfirmedEmail(fullOrder).catch(err =>
-        console.error('[fulfillment/update] payment-confirmed email failed:', err)
-      )
+      let sendError = null
+      let resendId = null
+      try {
+        const result = await sendPaymentConfirmedEmail(fullOrder)
+        if (result?.error) sendError = result.error.message || JSON.stringify(result.error)
+        else resendId = result?.data?.id || null
+      } catch (err) {
+        sendError = err?.message || String(err)
+      }
+      if (sendError) console.error('[fulfillment/update] payment-confirmed email failed:', fullOrder.order_number, sendError)
+      await supabase
+        .from('orders')
+        .update(sendError
+          ? { payment_email_error: String(sendError).slice(0, 500) }
+          : { payment_email_sent_at: new Date().toISOString(), payment_email_resend_id: resendId, payment_email_error: null })
+        .eq('id', id)
+      payment_email = sendError ? { sent: false, error: sendError } : { sent: true, id: resendId }
+    } else {
+      payment_email = { sent: false, error: 'No customer email on order' }
     }
   }
 
   return NextResponse.json(
-    { ok: true, order: data },
+    { ok: true, order: data, payment_email },
     { headers: {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
       'CDN-Cache-Control': 'no-store',

@@ -280,7 +280,12 @@ export default function FulfillmentPage() {
       // cooldown window and skips.
       lastSaveAtRef.current = Date.now()
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...j.order } : o))
-      setError('')
+      // Surface payment-confirmed email failures instead of failing silently.
+      if (j.payment_email && j.payment_email.sent === false) {
+        setError(`Marked paid, but the customer payment email did NOT send: ${j.payment_email.error}`)
+      } else {
+        setError('')
+      }
       setSavedFlash(Date.now())  // brief visual feedback
     } catch (e) {
       setError(`Save failed: ${e.message} — try again`)
