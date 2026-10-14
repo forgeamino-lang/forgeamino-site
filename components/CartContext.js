@@ -8,15 +8,18 @@ const CartContext = createContext(null)
 function cartReducer(state, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
+      // action.qty lets the product page add a bundle (e.g. 5 or 10 vials)
+      // in one click; defaults to 1.
+      const qty = Math.max(1, parseInt(action.qty, 10) || 1)
       const existing = state.find(i => i.slug === action.item.slug)
       if (existing) {
         return state.map(i =>
           i.slug === action.item.slug
-            ? { ...i, quantity: i.quantity + 1 }
+            ? { ...i, quantity: i.quantity + qty }
             : i
         )
       }
-      return [...state, { ...action.item, quantity: 1 }]
+      return [...state, { ...action.item, quantity: qty }]
     }
     case 'REMOVE_ITEM':
       return state.filter(i => i.slug !== action.slug)
@@ -60,7 +63,7 @@ export function CartProvider({ children }) {
     sessionStorage.setItem('forge-cart', JSON.stringify(cart))
   }, [cart])
 
-  const addItem = (product) => dispatch({ type: 'ADD_ITEM', item: product })
+  const addItem = (product, qty = 1) => dispatch({ type: 'ADD_ITEM', item: product, qty })
   const removeItem = (slug) => dispatch({ type: 'REMOVE_ITEM', slug })
   const updateQuantity = (slug, quantity) => dispatch({ type: 'UPDATE_QUANTITY', slug, quantity })
   const clearCart = () => dispatch({ type: 'CLEAR_CART' })
