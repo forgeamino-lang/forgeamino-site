@@ -146,6 +146,10 @@ whitelisted: false,
 }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
+// Whitelisted codes (e.g. OWNERS) are member pricing: exempt from the
+// multi-vial no-stacking comparison (see lib/bulkDiscount.js).
+const member_pricing = Array.isArray(aff.email_whitelist) && aff.email_whitelist.length > 0
+
 if (aff.discount_to_cost) {
 if (!line_items.length) {
 return NextResponse.json({
@@ -164,6 +168,7 @@ name: aff.name,
 discount_to_cost: true,
 discount_amount,
 whitelisted: true,
+member_pricing,
 }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -185,6 +190,7 @@ name: aff.name,
 discount_to_fixed_price: true,
 discount_amount,
 whitelisted: true,
+member_pricing,
 }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -194,6 +200,7 @@ code: aff.code,
 name: aff.name,
 discount_pct: Number(aff.discount_pct || 0),
 whitelisted: true,
+member_pricing,
 }, { headers: { 'Cache-Control': 'no-store' } })
 } catch (e) {
 return NextResponse.json({ valid: false, error: 'lookup_failed' }, { status: 500 })
