@@ -6,6 +6,7 @@ import { broadcastOrderNotification } from '../../../lib/pushNotify'
 import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals, requiresDateOfBirth, validateDateOfBirth } from '../../../lib/orderValidation'
+import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../../lib/bulkDiscount'
 import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
 import { submitOrderToTrybe, getTrybeVisitorId } from '../../../lib/trybe'
@@ -422,6 +423,47 @@ console.error('Promo code lookup failed:', promoErr)
 }
 }
 
+// ── Multi-vial discount vs. code discounts: never stacked ─────────────
+// 5+ of a product = 20% off that line, 10+ = 30% (lib/bulkDiscount.js).
+// The customer gets whichever saves more on the order — the multi-vial
+// discount OR their code discount(s) above — never both. Member pricing
+// codes (whitelisted, e.g. OWNERS) are exempt and keep member pricing.
+// Affiliate attribution is unaffected: the typed/locked affiliate still
+// gets credit even when the multi-vial discount replaces their code's
+// discount. A one-time promo that loses to the multi-vial discount is NOT
+// marked redeemed, so the customer can still use it on a later order.
+const bulk = computeBulkDiscount(validated_line_items)
+const code_discount_amount = server_discount_amount
+const member_pricing = form_typed_raw.length > 0 && Array.isArray(form_email_whitelist) &&
+form_email_whitelist.length > 0 && code_discount_amount > 0
+const discount_choice = chooseDiscount({
+bulkAmount: bulk.discount_amount,
+codeAmount: code_discount_amount,
+memberPricing: member_pricing,
+})
+let discount_source = discount_choice === 'none' ? null : discount_choice
+let discount_label = null
+let code_discount_declined = 0
+let promo_blocked_by_bulk = false
+if (discount_choice === 'bulk') {
+code_discount_declined = code_discount_amount
+if (promo_discount_applied) {
+promo_discount_applied = false
+promo_blocked_by_bulk = true
+}
+server_discount_amount = bulk.discount_amount
+final_subtotal = Number((server_subtotal - server_discount_amount).toFixed(2))
+final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
+final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+discount_label = BULK_DISCOUNT_LABEL
+}
+const discount_meta = {
+discount_source,
+...(discount_label ? { discount_label } : {}),
+...(bulk.discount_amount > 0 ? { bulk_discount_available: bulk.discount_amount } : {}),
+...(code_discount_declined > 0 ? { code_discount_declined } : {}),
+}
+
 // ── Charge via Lut Turbo (ACH / Pay by Bank), if that's the chosen method ──
 // This happens AFTER server-trusted totals are computed, using final_total
 // (never the client-supplied total), and BEFORE the order is written -- a
@@ -473,6 +515,7 @@ subtotal: final_subtotal,
 tax_amount: final_tax_amount,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
+...discount_meta,
 ...(payment_method === 'lut_ach' ? { ach_fee_amount } : {}),
 },
 payment_method,
@@ -558,7 +601,7 @@ console.error('Promo redemption record failed:', redemptionWriteErr)
 // ── If promo has affiliated_with, lock attribution to that affiliate ───
 // ALBRIGHT10 sets affiliated_with = 'ALBRIGHT', so any customer who uses
 // the code gets permanently tied to ALBRIGHT for future order attribution.
-if (promo_discount_applied && promo_affiliated_with && email_lower) {
+if ((promo_discount_applied || promo_blocked_by_bulk) && promo_affiliated_with && email_lower) {
 try {
 const { data: promo_aff_row } = await supabase
 .from('affiliates')
@@ -593,6 +636,7 @@ subtotal: final_subtotal,
 tax_amount: final_tax_amount,
 discount_amount: server_discount_amount,
 subtotal_before_discount: server_subtotal_before_discount,
+...discount_meta,
 ...(payment_method === 'lut_ach' ? { ach_fee_amount } : {}),
 },
 payment_method,
