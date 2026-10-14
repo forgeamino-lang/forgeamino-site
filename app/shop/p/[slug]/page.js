@@ -339,6 +339,9 @@ export default function ProductPage({ params }) {
               Certificate of Analysis
             </h2>
             <CoaSelector coas={product.coas} />
+            <p className="text-xs text-gray-500 mt-3">
+              <Link href="/lab-results" className="text-[#2196f3] hover:underline">See lab results for every product</Link>
+            </p>
           </section>
         )}
 
