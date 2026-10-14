@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useCart } from './CartContext'
 import { formatPrice } from '../lib/products'
-import { BULK_TIERS, isBulkEligible } from '../lib/bulkDiscount'
+import { BULK_TIERS, isBulkEligible, bulkTierFor } from '../lib/bulkDiscount'
+import QuantityStepper from './QuantityStepper'
 import toast from 'react-hot-toast'
 import CoaSelector from './CoaSelector'
 
@@ -15,7 +16,14 @@ export default function LabProductCard({ product }) {
   const { addItem } = useCart()
   const [qty, setQty] = useState(1)
   const bulkEligible = isBulkEligible(product) && product.inStock && product.price > 0
-  const qtyOptions = [{ qty: 1, pct: 0 }, ...[...BULK_TIERS].reverse().map(t => ({ qty: t.minQty, pct: t.pct }))]
+  // Price brackets 1–4 / 5–9 / 10+; any quantity can be chosen with the stepper.
+  const ascending = [...BULK_TIERS].reverse()
+  const brackets = [
+    { min: 1, max: ascending[0].minQty - 1, pct: 0 },
+    ...ascending.map((t, i) => ({ min: t.minQty, max: ascending[i + 1] ? ascending[i + 1].minQty - 1 : null, pct: t.pct })),
+  ]
+  const activePct = bulkEligible ? (bulkTierFor(qty)?.pct || 0) : 0
+  const lineTotal = Math.round(product.price * (1 - activePct) * 100) / 100 * qty
 
   function handleAddToCart(e) {
     e.preventDefault()
@@ -97,27 +105,35 @@ export default function LabProductCard({ product }) {
         {bulkEligible && (
           <div className="mb-3">
             <p className="text-[10px] font-bold text-[#0d1b2a] tracking-widest uppercase mb-1.5">Bundle &amp; Save</p>
-            <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Choose quantity">
-              {qtyOptions.map(o => {
-                const selected = qty === o.qty
-                const each = Math.round(product.price * (1 - o.pct) * 100) / 100
+            <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Quantity pricing">
+              {brackets.map(b => {
+                const selected = qty >= b.min && (b.max === null || qty <= b.max)
+                const each = Math.round(product.price * (1 - b.pct) * 100) / 100
                 return (
                   <button
-                    key={o.qty}
+                    key={b.min}
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    onClick={() => setQty(o.qty)}
+                    onClick={() => { if (!selected) setQty(b.min) }}
                     className={`rounded-lg border-2 px-1 py-1.5 text-center transition-colors ${selected ? 'border-[#c9a227] bg-[#fdf8e8]' : 'border-gray-200 bg-white hover:border-gray-300'}`}
                   >
-                    <span className="block text-xs font-bold text-[#0d1b2a]">{o.qty} {o.qty === 1 ? 'Vial' : 'Vials'}</span>
-                    <span className={`block text-[10px] font-semibold ${o.pct > 0 ? 'text-green-700' : 'text-gray-400'}`}>{o.pct > 0 ? `${Math.round(o.pct * 100)}% off` : 'Single'}</span>
+                    <span className="block text-xs font-bold text-[#0d1b2a]">{b.max === null ? `${b.min}+` : `${b.min}–${b.max}`} Vials</span>
+                    <span className={`block text-[10px] font-semibold ${b.pct > 0 ? 'text-green-700' : 'text-gray-400'}`}>{b.pct > 0 ? `${Math.round(b.pct * 100)}% off` : 'Single'}</span>
                     <span className="block text-[10px] text-gray-500">${each.toFixed(2)} ea</span>
                   </button>
                 )
               })}
             </div>
             <p className="text-[10px] text-gray-400 mt-1.5 leading-snug">Can&apos;t be combined with discount codes. You get whichever saves more.</p>
+          </div>
+        )}
+
+        {/* Any quantity */}
+        {product.inStock && product.price > 0 && (
+          <div className="flex items-center justify-between mb-3">
+            <QuantityStepper value={qty} onChange={setQty} size="sm" />
+            <span className="text-xs font-bold text-[#0d1b2a]">${lineTotal.toFixed(2)}</span>
           </div>
         )}
 
