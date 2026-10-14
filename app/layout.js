@@ -75,9 +75,6 @@ export const metadata = {
     description: 'High-quality research peptides independently third-party tested in a US laboratory with verified 99%+ purity.',
     images: ['/hero-bg.jpg'],
   },
-  alternates: {
-    canonical: BASE_URL,
-  },
   verification: {
     // Multiple GSC properties — Next.js renders one meta tag per entry.
     // [0] pre-existing token; [1] forgeamino@gmail.com URL-prefix property.
@@ -86,6 +83,29 @@ export const metadata = {
       'NsgubQ-uQCTWziJ0L-PAYJree_aHjjgtZrcIDVubamk',
     ],
   },
+}
+
+// Organization + WebSite structured data: tells Google that "Forge Amino" is
+// a distinct brand that owns forgeamino.com (helps the brand-name query).
+const ORG_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${BASE_URL}/#organization`,
+      name: 'Forge Amino',
+      url: BASE_URL,
+      logo: `${BASE_URL}/forge-amino-logo.png`,
+      description: 'US-based supplier of research peptides, each batch independently third-party tested in a US laboratory with a published Certificate of Analysis.',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${BASE_URL}/#website`,
+      name: 'Forge Amino',
+      url: BASE_URL,
+      publisher: { '@id': `${BASE_URL}/#organization` },
+    },
+  ],
 }
 
 const TRYBE_PIXEL_SNIPPET = `
@@ -121,6 +141,7 @@ export default function RootLayout({ children }) {
               gtag('config', 'AW-18415687827');
             `}
           </Script>
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSON_LD) }} />
           {/* Trybe Attribution Pixel (Custom Domain) */}
           <script dangerouslySetInnerHTML={{ __html: TRYBE_PIXEL_SNIPPET }} />
         </head>
