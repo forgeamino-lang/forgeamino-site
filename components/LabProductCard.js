@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useCart } from './CartContext'
 import { formatPrice } from '../lib/products'
+import { BULK_TIERS, isBulkEligible } from '../lib/bulkDiscount'
 import toast from 'react-hot-toast'
 import CoaSelector from './CoaSelector'
 
@@ -11,6 +13,9 @@ import CoaSelector from './CoaSelector'
 // and checkout render as a small flask icon fallback.
 export default function LabProductCard({ product }) {
   const { addItem } = useCart()
+  const [qty, setQty] = useState(1)
+  const bulkEligible = isBulkEligible(product) && product.inStock && product.price > 0
+  const qtyOptions = [{ qty: 1, pct: 0 }, ...[...BULK_TIERS].reverse().map(t => ({ qty: t.minQty, pct: t.pct }))]
 
   function handleAddToCart(e) {
     e.preventDefault()
@@ -22,8 +27,8 @@ export default function LabProductCard({ product }) {
       qbo_name: product.qbo_name || product.name,
       price: product.price,
       image: null,
-    })
-    toast.success(`${product.name} added to cart`, {
+    }, qty)
+    toast.success(qty > 1 ? `${qty} × ${product.name} added to cart` : `${product.name} added to cart`, {
       style: { background: '#0d1b2a', color: '#fff' },
       iconTheme: { primary: '#c9a227', secondary: '#0d1b2a' },
     })
@@ -88,6 +93,34 @@ export default function LabProductCard({ product }) {
           )}
         </div>
 
+        {/* Bundle & Save — multi-vial discount (lib/bulkDiscount.js) */}
+        {bulkEligible && (
+          <div className="mb-3">
+            <p className="text-[10px] font-bold text-[#0d1b2a] tracking-widest uppercase mb-1.5">Bundle &amp; Save</p>
+            <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Choose quantity">
+              {qtyOptions.map(o => {
+                const selected = qty === o.qty
+                const each = Math.round(product.price * (1 - o.pct) * 100) / 100
+                return (
+                  <button
+                    key={o.qty}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setQty(o.qty)}
+                    className={`rounded-lg border-2 px-1 py-1.5 text-center transition-colors ${selected ? 'border-[#c9a227] bg-[#fdf8e8]' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <span className="block text-xs font-bold text-[#0d1b2a]">{o.qty} {o.qty === 1 ? 'Vial' : 'Vials'}</span>
+                    <span className={`block text-[10px] font-semibold ${o.pct > 0 ? 'text-green-700' : 'text-gray-400'}`}>{o.pct > 0 ? `${Math.round(o.pct * 100)}% off` : 'Single'}</span>
+                    <span className="block text-[10px] text-gray-500">${each.toFixed(2)} ea</span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5 leading-snug">Can&apos;t be combined with discount codes. You get whichever saves more.</p>
+          </div>
+        )}
+
         {/* Add to cart */}
         <button
           onClick={handleAddToCart}
@@ -98,7 +131,7 @@ export default function LabProductCard({ product }) {
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
         >
-          {product.price === 0 ? 'Coming Soon' : product.inStock ? 'Add to Cart' : 'Out of Stock'}
+          {product.price === 0 ? 'Coming Soon' : product.inStock ? (qty > 1 ? `Add ${qty} to Cart` : 'Add to Cart') : 'Out of Stock'}
         </button>
       </div>
     </div>
