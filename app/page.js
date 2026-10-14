@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { getSaleActive } from '../lib/siteConfig'
 
 export const metadata = {
-  title: 'High-Quality Research Peptides',
+  title: { absolute: 'Forge Amino | High-Quality Research Peptides' },
   description: 'Your source for high-quality research peptides. Every compound independently third-party tested in a US laboratory with verified 99%+ purity and QR-linked COA on each vial.',
   alternates: {
     canonical: 'https://www.forgeamino.com',
