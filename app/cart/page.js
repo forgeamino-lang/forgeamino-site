@@ -4,9 +4,16 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '../../components/CartContext'
 import { Trash2, Plus, Minus } from 'lucide-react'
+import { computeBulkDiscount, nextBulkTier } from '../../lib/bulkDiscount'
+import { getProductBySlug } from '../../lib/products'
 
 export default function CartPage() {
   const { cart, removeItem, updateQuantity, cartTotal } = useCart()
+  // Multi-vial discount (5+ = 20%, 10+ = 30% per item). Codes are entered at
+  // checkout; there the customer gets this OR their code, whichever is better.
+  const bulk = computeBulkDiscount(cart)
+  const bulkByslug = Object.fromEntries(bulk.per_line.map(l => [l.slug, l]))
+  const totalAfterBulk = Math.round((cartTotal - bulk.discount_amount) * 100) / 100
 
   if (cart.length === 0) {
     return (
@@ -75,18 +82,64 @@ export default function CartPage() {
                   <Plus size={12} />
                 </button>
               </div>
-              <p className="font-bold text-[#0d1b2a] text-sm">${(item.price * item.quantity).toFixed(2)}</p>
+              {bulkByslug[item.slug]?.discount > 0 ? (
+                <p className="text-sm text-right">
+                  <span className="text-gray-400 line-through mr-2">${(item.price * item.quantity).toFixed(2)}</span>
+                  <span className="font-bold text-[#0d1b2a]">${(item.price * item.quantity - bulkByslug[item.slug].discount).toFixed(2)}</span>
+                </p>
+              ) : (
+                <p className="font-bold text-[#0d1b2a] text-sm">${(item.price * item.quantity).toFixed(2)}</p>
+              )}
             </div>
+            {(() => {
+              const line = bulkByslug[item.slug]
+              const next = nextBulkTier(getProductBySlug(item.slug), item.quantity)
+              if (!line?.discount && !next) return null
+              return (
+                <div className="mt-2 pl-[76px] sm:pl-[92px] space-y-1">
+                  {line?.discount > 0 && (
+                    <p className="text-xs font-semibold text-green-700">Multi-vial discount: {Math.round(line.pct * 100)}% off (−${line.discount.toFixed(2)})</p>
+                  )}
+                  {next && (
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(item.slug, item.quantity + next.needed)}
+                      className="text-xs font-semibold text-[#2196f3] hover:underline text-left"
+                    >
+                      Add {next.needed} more to save {Math.round(next.pct * 100)}% on this item
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         ))}
       </div>
 
       {/* Order total */}
       <div className="bg-white rounded-lg p-6 shadow-sm">
+        {bulk.discount_amount > 0 && (
+          <div className="space-y-1 mb-3 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Subtotal</span>
+              <span>${cartTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-green-700 font-medium">
+              <span>Multi-vial discount</span>
+              <span>−${bulk.discount_amount.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
         <div className="flex justify-between items-center mb-5">
           <span className="font-bold text-[#0d1b2a] text-lg">Order Total</span>
-          <span className="font-bold text-[#0d1b2a] text-2xl">${cartTotal.toFixed(2)}</span>
+          <span className="font-bold text-[#0d1b2a] text-2xl">${totalAfterBulk.toFixed(2)}</span>
         </div>
+        {bulk.discount_amount > 0 && (
+          <p className="text-xs text-gray-500 -mt-3 mb-5">
+            The multi-vial discount can&apos;t be combined with discount codes. If you have a code,
+            checkout applies whichever saves you more.
+          </p>
+        )}
 
         {/* Shipping info */}
         {cartTotal >= 250 ? (
