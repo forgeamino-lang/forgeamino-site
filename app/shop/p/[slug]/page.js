@@ -46,6 +46,11 @@ export default function ProductPage({ params }) {
 
   const mechanismsLabel = product.mechanismsLabel || 'Mechanisms of Action'
 
+  // Other sizes/formats of the same compound (see sizeGroup in lib/products.js)
+  const sizeSiblings = product.sizeGroup
+    ? PRODUCTS.filter(p => p.sizeGroup === product.sizeGroup && !p.hidden).sort((a, b) => a.price - b.price)
+    : []
+
   const isComingSoon = !product.inStock || product.price === 0 || product.comingSoon
   const productUrl = `${BASE_URL}/shop/p/${product.slug}`
 
@@ -168,6 +173,24 @@ export default function ProductPage({ params }) {
             {formatPrice(product.price)}
           </p>
 
+          {/* Size switcher */}
+          {sizeSiblings.length > 1 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Available Sizes</p>
+              <div className="flex flex-wrap gap-2">
+                {sizeSiblings.map(s => s.slug === product.slug ? (
+                  <span key={s.slug} aria-current="page" className="px-3 py-1.5 text-xs font-bold rounded border-2 border-[#0d1b2a] bg-[#0d1b2a] text-white">
+                    {s.sizeLabel || s.name}
+                  </span>
+                ) : (
+                  <Link key={s.slug} href={`/shop/p/${s.slug}`} className="px-3 py-1.5 text-xs font-bold rounded border-2 border-gray-300 text-[#0d1b2a] hover:border-[#2196f3] hover:text-[#2196f3] transition-colors">
+                    {s.sizeLabel || s.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Tagline */}
           {product.tagline && (
             <p className="text-sm text-gray-600 leading-relaxed mb-6">
@@ -198,6 +221,18 @@ export default function ProductPage({ params }) {
 
       {/* Content sections below the fold */}
       <div className="border-t border-gray-200 pt-10 space-y-10">
+
+        {/* About This Size — unique per size so sibling pages aren't duplicates */}
+        {product.sizeNote && (
+          <section>
+            <h2 className="text-sm font-bold text-[#0d1b2a] tracking-widest uppercase mb-3">
+              About This Size
+            </h2>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {product.sizeNote}
+            </p>
+          </section>
+        )}
 
         {/* Description */}
         {product.description && (
