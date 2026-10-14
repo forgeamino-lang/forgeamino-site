@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../lib/shipping'
 import { getProductBySlug } from '../../lib/products'
+import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../lib/bulkDiscount'
 import { suggestEmailCorrection } from '../../lib/emailCheck'
 
 const US_STATES = [
@@ -138,7 +139,26 @@ const promoDiscountFromAmt = promoPreview?.valid && Number(promoPreview.discount
 const promoDiscountAmount = Math.max(promoDiscountFromPct, promoDiscountFromAmt)
 
 // Combined discount from both codes
-const discountAmount = affDiscountAmount + promoDiscountAmount
+const codeDiscountAmount = affDiscountAmount + promoDiscountAmount
+
+// Multi-vial discount (5+ = 20%, 10+ = 30% per item) — never stacked with
+// codes. Mirrors the server rule in app/api/orders/route.js via
+// lib/bulkDiscount.js: the order gets whichever saves more; member pricing
+// codes (OWNERS) are exempt.
+const bulk = computeBulkDiscount(cart)
+const bulkByslug = Object.fromEntries(bulk.per_line.map(l => [l.slug, l]))
+const memberPricing = !!(affPreview?.valid && affPreview.member_pricing && affDiscountAmount > 0)
+const discountChoice = chooseDiscount({ bulkAmount: bulk.discount_amount, codeAmount: codeDiscountAmount, memberPricing })
+const bulkApplied = discountChoice === 'bulk'
+const codesApplied = discountChoice === 'code' || discountChoice === 'member'
+const typedCode = (affPreview?.valid ? (affPreview.code || form.affiliateCode.trim().toUpperCase()) : '') ||
+(promoPreview?.valid ? (promoPreview.code || form.promoCode.trim().toUpperCase()) : '')
+// Customer typed a code that carries a discount, and the multi-vial discount won.
+const codeDeclinedForBulk = bulkApplied && codeDiscountAmount > 0
+// Customer's code beat the multi-vial discount (e.g. FAMILY pricing).
+const bulkDeclinedForCode = discountChoice === 'code' && bulk.discount_amount > 0
+
+const discountAmount = bulkApplied ? bulk.discount_amount : (codesApplied ? codeDiscountAmount : 0)
 const subtotalAfter = Math.max(0, cartTotal - discountAmount)
 const taxAmount = Math.round(subtotalAfter * combinedRate * 100) / 100
 // Shipping is computed in lib/shipping so the rule lives in exactly one place.
@@ -687,7 +707,7 @@ ${affLoading || !form.affiliateCode.trim()
 </button>
 </div>
 {affPreview?.valid && (
-<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 ? ` — saving ${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
+<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 && !codeDeclinedForBulk ? ` — saving $${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
 )}
 {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
 <p className="mt-1.5 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
@@ -717,6 +737,9 @@ ${affLoading || !form.affiliateCode.trim()
 <div className="flex-1 min-w-0">
 <p className="text-xs font-bold text-[#0d1b2a] uppercase truncate">{item.name}</p>
 <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
+{bulkApplied && bulkByslug[item.slug]?.discount > 0 && (
+<p className="text-xs font-semibold text-green-700">Multi-vial {Math.round(bulkByslug[item.slug].pct * 100)}% off</p>
+)}
 </div>
 <p className="text-sm font-bold text-[#0d1b2a]">${(item.price * item.quantity).toFixed(2)}</p>
 </div>
@@ -735,7 +758,30 @@ ${affLoading || !form.affiliateCode.trim()
 <span className="animate-pulse">—</span>
 </div>
 )}
-{promoPreview?.valid && promoDiscountAmount > 0 && (
+{bulkApplied && (
+<div className="flex justify-between items-center text-sm">
+<span className="text-green-700 font-medium">{BULK_DISCOUNT_LABEL}</span>
+<span className="text-green-700 font-medium">−${bulk.discount_amount.toFixed(2)}</span>
+</div>
+)}
+{codeDeclinedForBulk && (
+<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 leading-relaxed">
+<strong>{typedCode || 'Your code'} can&apos;t be combined with the multi-vial discount.</strong>{' '}
+Your multi-vial savings (${bulk.discount_amount.toFixed(2)}) beat your code&apos;s discount (${codeDiscountAmount.toFixed(2)}),
+so we&apos;ve applied the multi-vial discount instead. Discounts don&apos;t stack.
+{affPreview?.valid ? ' Your affiliate still receives credit for this order.' : ''}
+</div>
+)}
+{bulkDeclinedForCode && (
+<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 leading-relaxed">
+<strong>Your {typedCode || 'code'} pricing saves you more than the multi-vial discount</strong>{' '}
+(${codeDiscountAmount.toFixed(2)} vs ${bulk.discount_amount.toFixed(2)}), so we&apos;ve applied {typedCode || 'your code'} instead. Discounts don&apos;t stack.
+</div>
+)}
+{bulkApplied && !codeDeclinedForBulk && (
+<p className="text-xs text-gray-500 leading-relaxed">The multi-vial discount can&apos;t be combined with discount codes.</p>
+)}
+{codesApplied && promoPreview?.valid && promoDiscountAmount > 0 && (
 <div className="flex justify-between items-center text-sm">
 <span className="text-green-700 font-medium">
 {promoPreview.code || form.promoCode.trim().toUpperCase()} promo
@@ -756,7 +802,7 @@ ${affLoading || !form.affiliateCode.trim()
 <span className="animate-pulse">—</span>
 </div>
 )}
-{affPreview?.valid && affDiscountAmount > 0 && (
+{codesApplied && affPreview?.valid && affDiscountAmount > 0 && (
 <div className="flex justify-between items-center text-sm">
 <span className="text-green-700 font-medium">
 {affPreview.code || form.affiliateCode.trim().toUpperCase()} discount
