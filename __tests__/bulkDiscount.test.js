@@ -6,7 +6,7 @@ import { getProductBySlug } from '../lib/products.js'
 //   bpc-157         $70  peptides      (eligible)
 //   wolverine-blend $105 blends        (eligible)
 //   bac-water-30ml  $30  supplies      (not eligible)
-//   r               $195 lab, hidden   (not eligible)
+//   r               $195 lab, hidden   (eligible — Lab peptides included)
 //   rx-pt-141            prescription  (not eligible)
 
 describe('tiers', () => {
@@ -19,10 +19,10 @@ describe('tiers', () => {
     expect(bulkTierFor(25).pct).toBe(0.3)
   })
 
-  test('eligibility excludes supplies, Lab-only and prescription items', () => {
+  test('eligibility: Shop + Lab peptides yes; supplies and compounded prescription no', () => {
     expect(isBulkEligible(getProductBySlug('bpc-157'))).toBe(true)
+    expect(isBulkEligible(getProductBySlug('r'))).toBe(true)
     expect(isBulkEligible(getProductBySlug('bac-water-30ml'))).toBe(false)
-    expect(isBulkEligible(getProductBySlug('r'))).toBe(false)
     expect(isBulkEligible(getProductBySlug('rx-pt-141'))).toBe(false)
     expect(isBulkEligible({ ...getProductBySlug('bpc-157'), bulkDiscount: false })).toBe(false)
   })
