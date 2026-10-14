@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { PRODUCTS, getProductBySlug, formatPrice } from '../../../../lib/products'
 import AddToCartButton from './AddToCartButton'
 import CoaSelector from '../../../../components/CoaSelector'
+import { computeShipping } from '../../../../lib/shipping'
 
 export const dynamicParams = false
 
@@ -45,33 +46,71 @@ export default function ProductPage({ params }) {
 
   const mechanismsLabel = product.mechanismsLabel || 'Mechanisms of Action'
 
+  const isComingSoon = !product.inStock || product.price === 0 || product.comingSoon
+  const productUrl = `${BASE_URL}/shop/p/${product.slug}`
+
+  // Product structured data — makes the page eligible for price, availability,
+  // shipping and returns details in Google results. Shipping mirrors
+  // lib/shipping.js (FedEx 2-Day, free at the free-shipping threshold).
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name,
     description: product.tagline || product.description || '',
     ...(product.image ? { image: `${BASE_URL}${product.image}` } : {}),
-    url: `${BASE_URL}/shop/p/${product.slug}`,
+    url: productUrl,
+    sku: `FA-${product.id}`,
     brand: {
       '@type': 'Brand',
       name: 'Forge Amino',
     },
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'USD',
-      price: product.price.toFixed(2),
-      availability: product.inStock && product.price > 0 && !product.comingSoon
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/PreOrder',
-      url: `${BASE_URL}/shop/p/${product.slug}`,
-      seller: {
-        '@type': 'Organization',
-        name: 'Forge Amino',
+    // No offer when there is no real price yet (Google rejects $0 offers).
+    ...(product.price > 0 ? {
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'USD',
+        price: product.price.toFixed(2),
+        itemCondition: 'https://schema.org/NewCondition',
+        availability: isComingSoon
+          ? 'https://schema.org/OutOfStock'
+          : 'https://schema.org/InStock',
+        url: productUrl,
+        seller: { '@id': `${BASE_URL}/#organization` },
+        shippingDetails: {
+          '@type': 'OfferShippingDetails',
+          shippingRate: {
+            '@type': 'MonetaryAmount',
+            value: computeShipping(product.price, 'fedex_2day').toFixed(2),
+            currency: 'USD',
+          },
+          shippingDestination: {
+            '@type': 'DefinedRegion',
+            addressCountry: 'US',
+          },
+          deliveryTime: {
+            '@type': 'ShippingDeliveryTime',
+            handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
+            transitTime: { '@type': 'QuantitativeValue', minValue: 2, maxValue: 2, unitCode: 'DAY' },
+          },
+        },
+        hasMerchantReturnPolicy: {
+          '@type': 'MerchantReturnPolicy',
+          applicableCountry: 'US',
+          returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted',
+        },
       },
-    },
+    } : {}),
   }
 
-  const isComingSoon = !product.inStock || product.price === 0 || product.comingSoon
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: BASE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Shop', item: `${BASE_URL}/shop` },
+      { '@type': 'ListItem', position: 3, name: product.name, item: productUrl },
+    ],
+  }
 
   return (
     <>
@@ -79,9 +118,15 @@ export default function ProductPage({ params }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+      />
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
       {/* Breadcrumb */}
       <nav className="text-xs text-gray-400 mb-6 sm:mb-8 flex items-center gap-1">
+        <Link href="/" className="hover:text-[#2196f3] transition-colors">Home</Link>
+        <span>›</span>
         <Link href="/shop" className="hover:text-[#2196f3] transition-colors">Shop</Link>
         <span>›</span>
         <span className="text-[#0d1b2a]">{product.name}</span>
