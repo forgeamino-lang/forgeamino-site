@@ -1,5 +1,5 @@
 export const metadata = {
-    title: 'My Account | Forge Amino',
+    title: 'My Account',
     robots: { index: false, follow: false },
 }
 
