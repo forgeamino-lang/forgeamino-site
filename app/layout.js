@@ -170,6 +170,9 @@ export default function RootLayout({ children }) {
                   </p>
                 </div>
                 <div className="flex justify-center gap-6 flex-wrap mb-6">
+                  <Link href="/lab-results" className="text-gray-400 hover:text-[#4fc3f7] text-xs tracking-wide transition-colors">
+                    Lab Results
+                  </Link>
                   <Link href="/disclaimers" className="text-gray-400 hover:text-[#4fc3f7] text-xs tracking-wide transition-colors">
                     Disclaimers
                   </Link>
