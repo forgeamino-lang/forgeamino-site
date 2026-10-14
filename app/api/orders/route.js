@@ -7,11 +7,15 @@ import { requireAdmin } from '../../../lib/adminAuth'
 import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals, requiresDateOfBirth, validateDateOfBirth } from '../../../lib/orderValidation'
 import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../../lib/bulkDiscount'
+import { normalizeCreditCode, evaluateStoreCredit } from '../../../lib/storeCredit'
 import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
 import { submitOrderToTrybe, getTrybeVisitorId } from '../../../lib/trybe'
 
 export async function POST(request) {
+// Set once a store credit is claimed; cleared once the order is saved. The
+// outer catch calls it so an unexpected error never strands a claimed code.
+let releaseOnFailure = async () => {}
 try {
 const body = await request.json()
 const {
@@ -28,6 +32,7 @@ tax_rate,
 total,
 affiliate_code,
 promo_code,
+store_credit_code,
 lut_cart_id,
 lut_pay_token,
 lut_merchant_id,
@@ -457,11 +462,73 @@ final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
 final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
 discount_label = BULK_DISCOUNT_LABEL
 }
+// ── Store credit (single-use dollar credit, e.g. BACK67-T6DVR) ─────────
+// Stacks with everything: it comes off LAST, after whichever discount the
+// order already gets (FRIENDS, FAMILY, multi-vial...). Rules live in
+// lib/storeCredit.js. The code is claimed atomically BEFORE any charge so
+// two simultaneous orders can't both use it; every failure path below
+// releases the claim. A credit that no longer validates fails the order
+// with a clear message rather than silently charging more than the
+// customer saw at checkout.
+const credit_code_clean = normalizeCreditCode(store_credit_code)
+let store_credit_amount = 0
+let store_credit_claimed = false
+const releaseStoreCredit = async () => {
+if (!store_credit_claimed) return
+try {
+await supabase
+.from('store_credits')
+.update({ redeemed_at: null, order_number: null, order_id: null })
+.eq('code', credit_code_clean)
+.eq('order_number', order_number)
+store_credit_claimed = false
+} catch (releaseErr) {
+console.error('Store credit release failed:', releaseErr)
+Sentry.captureException(releaseErr, { extra: { credit_code_clean, order_number }, tags: { area: 'orders', failure: 'store-credit-release' } })
+}
+}
+releaseOnFailure = releaseStoreCredit
+if (credit_code_clean) {
+const { data: credit_row } = await supabase
+.from('store_credits')
+.select('code, customer_email, amount, min_order, active, expires_at, redeemed_at')
+.eq('code', credit_code_clean)
+.maybeSingle()
+const credit_check = evaluateStoreCredit(credit_row, {
+email: email_lower,
+subtotalBeforeDiscount: server_subtotal,
+subtotalAfterDiscount: final_subtotal,
+})
+if (!credit_check.ok) {
+return NextResponse.json({ error: credit_check.message, field: 'store_credit_code' }, { status: 400 })
+}
+const { data: claimed } = await supabase
+.from('store_credits')
+.update({ redeemed_at: new Date().toISOString(), order_number })
+.eq('code', credit_code_clean)
+.eq('customer_email', email_lower)
+.eq('active', true)
+.is('redeemed_at', null)
+.select('id')
+if (!claimed || claimed.length === 0) {
+return NextResponse.json({ error: 'This credit code has already been used.', field: 'store_credit_code' }, { status: 409 })
+}
+store_credit_claimed = true
+store_credit_amount = credit_check.amount
+if (store_credit_amount > 0) {
+server_discount_amount = Number((server_discount_amount + store_credit_amount).toFixed(2))
+final_subtotal = Number((final_subtotal - store_credit_amount).toFixed(2))
+final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
+final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+}
+}
+
 const discount_meta = {
 discount_source,
 ...(discount_label ? { discount_label } : {}),
 ...(bulk.discount_amount > 0 ? { bulk_discount_available: bulk.discount_amount } : {}),
 ...(code_discount_declined > 0 ? { code_discount_declined } : {}),
+...(store_credit_claimed ? { store_credit_code: credit_code_clean, store_credit_amount } : {}),
 }
 
 // ── Charge via Lut Turbo (ACH / Pay by Bank), if that's the chosen method ──
@@ -472,6 +539,7 @@ let lut_transaction_id = null
 let ach_fee_amount = 0
 if (payment_method === 'lut_ach') {
 if (!lut_cart_id || !lut_pay_token || !lut_merchant_id) {
+await releaseStoreCredit()
 return NextResponse.json({ error: 'Missing bank payment details — please link your bank account again.' }, { status: 400 })
 }
 // Lut Turbo charges us 3.95% + $0.30 per ACH transaction. We pass this
@@ -495,6 +563,7 @@ Sentry.captureException(new Error('Lut Turbo transaction failed'), {
 extra: { lut_error: lutResult.error, lut_response_code: lutResult.lutResponseCode, customer_email, order_number },
 tags: { area: 'orders', failure: 'lut-transaction' },
 })
+await releaseStoreCredit()
 return NextResponse.json({ error: lutResult.error || 'Bank payment could not be completed. Please try again.' }, { status: 402 })
 }
 lut_transaction_id = lutResult.transactionId
@@ -539,6 +608,7 @@ ach_routing_last4: ach_routing_last4 || null,
 .single()
 
 if (error) {
+await releaseStoreCredit()
 // Idempotency: duplicate submission — order already exists, return success
 if (error.code === '23505') {
 console.warn('Duplicate order submission ignored for order_number:', order_number)
@@ -559,6 +629,16 @@ order_number,
 tags: { area: 'orders', failure: 'supabase-insert' },
 })
 return NextResponse.json({ error: 'Failed to create order' }, { status: 500 })
+}
+
+// ── Link the redeemed store credit to the saved order ─────────────────
+releaseOnFailure = async () => {}
+if (store_credit_claimed) {
+try {
+await supabase.from('store_credits').update({ order_id: data.id }).eq('code', credit_code_clean)
+} catch (creditLinkErr) {
+console.error('Store credit order link failed:', creditLinkErr)
+}
 }
 
 // ── Write the sticky attribution row, first time only ─────────────────
@@ -707,6 +787,7 @@ resendId
 
 return NextResponse.json({ orderId: data.id, orderNumber: order_number })
 } catch (err) {
+await releaseOnFailure()
 console.error('Order creation error:', err)
 Sentry.captureException(err, {
 tags: { area: 'orders', failure: 'unhandled' },

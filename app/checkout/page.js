@@ -10,6 +10,7 @@ import { computeShipping, shippingLabel, FREE_SHIPPING_THRESHOLD } from '../../l
 import { getProductBySlug } from '../../lib/products'
 import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../lib/bulkDiscount'
 import { suggestEmailCorrection } from '../../lib/emailCheck'
+import { normalizeCreditCode, looksLikeCreditCode, STORE_CREDIT_LABEL } from '../../lib/storeCredit'
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -61,6 +62,7 @@ paymentMethod: 'venmo',
 shippingMethod: 'fedex_2day',
 affiliateCode: '',
   promoCode: '',
+  storeCreditCode: '',
   dob: '',
 })
 
@@ -71,6 +73,9 @@ const [affPreview, setAffPreview] = useState(null) // { valid, discount_pct, nam
 const [affLoading, setAffLoading] = useState(false)
 const [promoPreview, setPromoPreview] = useState(null)
 const [promoLoading, setPromoLoading] = useState(false)
+// Store credit (single-use dollar credit, e.g. BACK67-T6DVR) — rules in lib/storeCredit.js
+const [creditPreview, setCreditPreview] = useState(null) // { valid, code, amount, min_order, expires_at } | { valid:false, message }
+const [creditLoading, setCreditLoading] = useState(false)
 
 // ── Lut Turbo (Pay by Bank / ACH) state ──────────────────────────────────
 const [lutCartId] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `cart-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -98,6 +103,14 @@ body: JSON.stringify({ code: refCode, email: '', line_items: [] }),
 .then(j => setAffPreview(j?.valid ? j : { valid: false }))
 .catch(() => setAffPreview({ valid: false }))
 .finally(() => setAffLoading(false))
+}, [])
+
+// Pre-fill a store credit code from the win-back email link (?credit=CODE),
+// captured on any page by AffiliateTracker. Applied once an email is entered.
+useEffect(() => {
+const params = new URLSearchParams(window.location.search)
+const c = normalizeCreditCode(params.get('credit') || sessionStorage.getItem('storeCredit') || '')
+if (c) setForm(f => ({ ...f, storeCreditCode: c }))
 }, [])
 
 useEffect(() => {
@@ -159,7 +172,15 @@ const codeDeclinedForBulk = bulkApplied && codeDiscountAmount > 0
 const bulkDeclinedForCode = discountChoice === 'code' && bulk.discount_amount > 0
 
 const discountAmount = bulkApplied ? bulk.discount_amount : (codesApplied ? codeDiscountAmount : 0)
-const subtotalAfter = Math.max(0, cartTotal - discountAmount)
+// Store credit stacks with everything and comes off last. The minimum order
+// is checked against the product subtotal before discounts; the credit never
+// takes the subtotal below $0. The orders API re-checks all of this.
+const creditMinOrder = creditPreview?.valid ? Number(creditPreview.min_order || 0) : 0
+const creditBelowMin = !!creditPreview?.valid && cartTotal < creditMinOrder
+const creditAmount = creditPreview?.valid && !creditBelowMin
+? Math.round(Math.min(Number(creditPreview.amount || 0), Math.max(0, cartTotal - discountAmount)) * 100) / 100
+: 0
+const subtotalAfter = Math.max(0, cartTotal - discountAmount - creditAmount)
 const taxAmount = Math.round(subtotalAfter * combinedRate * 100) / 100
 // Shipping is computed in lib/shipping so the rule lives in exactly one place.
 // Tax base stays on subtotal only — shipping is not taxed.
@@ -176,11 +197,14 @@ function handleChange(e) {
 setForm(f => ({ ...f, [e.target.name]: e.target.value }))
 if (e.target.name === 'affiliateCode') setAffPreview(null)
 if (e.target.name === 'promoCode') setPromoPreview(null)
-if (e.target.name === 'email') setEmailCheck(null)
+if (e.target.name === 'storeCreditCode') setCreditPreview(null)
+if (e.target.name === 'email') { setEmailCheck(null); setCreditPreview(null) }
 }
 
 function handleEmailBlur() {
 setEmailCheck(suggestEmailCorrection(form.email))
+// A credit code pre-filled from the email link applies once there's an email.
+if (form.storeCreditCode.trim() && !creditPreview && /.+@.+\..+/.test(form.email.trim())) applyStoreCredit()
 }
 
 function acceptEmailSuggestion() {
@@ -190,9 +214,45 @@ setForm(f => ({ ...f, email: emailCheck.suggestion }))
 setEmailCheck(null)
 }
 
+async function applyStoreCredit(codeOverride) {
+const code = normalizeCreditCode(codeOverride ?? form.storeCreditCode)
+if (!code) { setCreditPreview(null); return }
+setCreditLoading(true)
+try {
+const r = await fetch('/api/store-credit/preview', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+cache: 'no-store',
+body: JSON.stringify({
+code,
+email: form.email,
+line_items: cart.map(i => ({ slug: i.slug, quantity: i.quantity })),
+}),
+})
+const j = await r.json()
+// A code that's valid but short of its minimum still counts as "yours";
+// keep it so the summary can tell the customer how much more to add.
+if (j?.valid) setCreditPreview(j)
+else if (j?.reason === 'below_minimum') setCreditPreview({ valid: true, code: j.code, amount: j.amount, min_order: j.min_order })
+else setCreditPreview({ valid: false, message: j?.message || 'That credit code isn’t valid.' })
+} catch {
+setCreditPreview({ valid: false, message: 'Couldn’t check that code right now — please try again.' })
+} finally {
+setCreditLoading(false)
+}
+}
+
 async function applyAffiliateCode() {
 const raw = (form.affiliateCode || '').trim()
 if (!raw) { setAffPreview(null); return }
+// A store credit code typed into the affiliate box: move it to its own box.
+if (looksLikeCreditCode(raw)) {
+const c = normalizeCreditCode(raw)
+setForm(f => ({ ...f, affiliateCode: '', storeCreditCode: c }))
+setAffPreview(null)
+applyStoreCredit(c)
+return
+}
 setAffLoading(true)
 try {
 const r = await fetch('/api/affiliate/preview', {
@@ -366,6 +426,7 @@ payment_method: form.paymentMethod,
 shipping_method: form.shippingMethod,
 affiliate_code: form.affiliateCode || null,
 promo_code: form.promoCode || null,
+store_credit_code: creditAmount > 0 ? normalizeCreditCode(creditPreview.code || form.storeCreditCode) : null,
 date_of_birth: form.dob || null,
 ...(form.paymentMethod === 'lut_ach' && lutCapture ? {
 lut_cart_id: lutCartId,
@@ -715,6 +776,53 @@ ${affLoading || !form.affiliateCode.trim()
 </div>
 </div>
 
+{/* Store Credit */}
+<div className="bg-white rounded-lg p-6 shadow-sm">
+<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-1">Store Credit</h2>
+<p className="text-xs text-gray-400 mb-3">Got a credit code by email? Enter it here. It works with other discounts and comes off your order last.</p>
+<div className="flex gap-2">
+<input
+name="storeCreditCode"
+type="text"
+autoComplete="off"
+spellCheck="false"
+value={form.storeCreditCode}
+onChange={handleChange}
+placeholder="e.g. BACK23-XXXXX"
+className="flex-1 min-w-0 px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
+/>
+<button
+type="button"
+onClick={() => applyStoreCredit()}
+disabled={creditLoading || !form.storeCreditCode.trim()}
+className={`px-4 py-3 rounded-lg text-sm font-bold tracking-wider uppercase transition-all whitespace-nowrap
+${creditLoading || !form.storeCreditCode.trim()
+? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+: 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
+}`}
+>
+{creditLoading ? '…' : 'Apply'}
+</button>
+</div>
+{!form.email.trim() && form.storeCreditCode.trim() && !creditPreview && (
+<p className="mt-1.5 text-xs text-gray-500">Enter your email first — credit codes work with the email they were sent to.</p>
+)}
+{creditPreview?.valid && !creditBelowMin && (
+<p className="mt-1.5 text-xs font-semibold text-green-600">
+✓ ${Number(creditPreview.amount).toFixed(0)} credit applied{creditAmount < Number(creditPreview.amount) ? ` (−$${creditAmount.toFixed(2)} on this order)` : ''}
+{creditPreview.expires_at ? <span className="font-normal text-gray-500"> · expires {new Date(creditPreview.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span> : null}
+</p>
+)}
+{creditBelowMin && (
+<p className="mt-1.5 text-xs text-amber-700">
+Your ${Number(creditPreview.amount).toFixed(0)} credit applies to orders of ${creditMinOrder.toFixed(0)} or more. Add ${(creditMinOrder - cartTotal).toFixed(2)} more to use it.
+</p>
+)}
+{creditPreview && !creditPreview.valid && (
+<p className="mt-1.5 text-xs text-red-500">{creditPreview.message}</p>
+)}
+</div>
+
 <div className="bg-white rounded-lg p-6 shadow-sm sticky top-24">
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Order Summary</h2>
 
@@ -817,7 +925,13 @@ so we&apos;ve applied the multi-vial discount instead. Discounts don&apos;t stac
 <span>✓</span>
 </div>
 )}
-{discountAmount > 0 && (
+{creditAmount > 0 && (
+<div className="flex justify-between items-center text-sm">
+<span className="text-green-700 font-medium">{STORE_CREDIT_LABEL} ({normalizeCreditCode(creditPreview.code || form.storeCreditCode)})</span>
+<span className="text-green-700 font-medium">−${creditAmount.toFixed(2)}</span>
+</div>
+)}
+{(discountAmount > 0 || creditAmount > 0) && (
 <div className="flex justify-between items-center text-sm text-gray-600 font-medium pt-1">
 <span>Subtotal after discount</span>
 <span>${subtotalAfter.toFixed(2)}</span>
