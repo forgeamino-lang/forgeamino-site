@@ -55,7 +55,7 @@ export default function OffersCarousel({ slides = [] }) {
     <section
       aria-roledescription="carousel"
       aria-label="Current offers"
-      className="bg-[#f3f7fc] py-8 sm:py-12"
+      className="relative z-10 -mt-16 sm:-mt-20 pb-8 sm:pb-12"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}

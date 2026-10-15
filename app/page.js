@@ -23,7 +23,7 @@ export default async function Home() {
   return (
     <div>
       {/* ── HERO ── */}
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+      <section className="relative min-h-[56vh] pb-20 sm:pb-24 flex items-center overflow-hidden">
         {/* Background image — served locally to avoid hotlink blocking */}
         <div className="absolute inset-0 z-0">
           <Image
@@ -38,7 +38,7 @@ export default async function Home() {
         </div>
 
         {/* Hero content — left-aligned, matching forgeamino.com */}
-        <div className="relative z-10 max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-24 w-full">
+        <div className="relative z-10 max-w-6xl mx-auto px-5 sm:px-8 pt-12 pb-6 sm:pt-12 sm:pb-4 w-full">
           <div className="max-w-xl">
             {/* Badge pills */}
             <div className="flex flex-wrap gap-2 mb-5">
@@ -98,7 +98,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── OFFERS CAROUSEL ── */}
+      {/* ── OFFERS CAROUSEL (overlaps the bottom of the hero) ── */}
       <OffersCarousel slides={offers} />
     </div>
   )
