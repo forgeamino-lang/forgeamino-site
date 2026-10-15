@@ -75,6 +75,7 @@ const [affLoading, setAffLoading] = useState(false)
 const [promoPreview, setPromoPreview] = useState(null)
 const [promoLoading, setPromoLoading] = useState(false)
 // Store credit (single-use dollar credit, e.g. BACK67-T6DVR) — rules in lib/storeCredit.js
+const [creditOpen, setCreditOpen] = useState(false) // collapsed behind a link unless a credit is in play
 const [creditPreview, setCreditPreview] = useState(null) // { valid, code, amount, min_order, expires_at } | { valid:false, message }
 const [creditLoading, setCreditLoading] = useState(false)
 // First-order discount (15%, automatic) — rules in lib/firstOrder.js
@@ -802,7 +803,19 @@ ${affLoading || !form.affiliateCode.trim()
 </div>
 </div>
 
-{/* Store Credit */}
+{/* Store Credit — collapsed to a link; opens on click, or by itself when a
+    credit is already in play (email link, typed code, or a check result). */}
+{!(creditOpen || form.storeCreditCode.trim() || creditPreview) ? (
+<div className="-mt-3 px-1 text-right">
+<button
+type="button"
+onClick={() => setCreditOpen(true)}
+className="text-xs text-gray-500 underline underline-offset-2 hover:text-[#2196f3] transition-colors"
+>
+Have a store credit code?
+</button>
+</div>
+) : (
 <div className="bg-white rounded-lg p-6 shadow-sm">
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-1">Store Credit</h2>
 <p className="text-xs text-gray-400 mb-3">Got a credit code by email? Enter it here. It works with other discounts and comes off your order last.</p>
@@ -810,6 +823,7 @@ ${affLoading || !form.affiliateCode.trim()
 <input
 name="storeCreditCode"
 type="text"
+autoFocus={creditOpen && !form.storeCreditCode}
 autoComplete="off"
 spellCheck="false"
 value={form.storeCreditCode}
@@ -848,6 +862,7 @@ Your ${Number(creditPreview.amount).toFixed(0)} credit applies to orders of ${cr
 <p className="mt-1.5 text-xs text-red-500">{creditPreview.message}</p>
 )}
 </div>
+)}
 
 <div className="bg-white rounded-lg p-6 shadow-sm sticky top-24">
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Order Summary</h2>
