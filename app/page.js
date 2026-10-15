@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { getSaleActive, getHolidayOfferRaw } from '../lib/siteConfig'
+import { getHolidayOfferRaw } from '../lib/siteConfig'
 import { buildOffers, parseHolidayOffer } from '../lib/offers'
 import OffersCarousel from '../components/OffersCarousel'
 
@@ -18,7 +18,6 @@ export const metadata = {
 }
 
 export default async function Home() {
-  const saleActive = await getSaleActive()
   const offers = buildOffers(parseHolidayOffer(await getHolidayOfferRaw()))
   return (
     <div>
@@ -42,12 +41,6 @@ export default async function Home() {
           <div className="max-w-xl">
             {/* Badge pills */}
             <div className="flex flex-wrap gap-2 mb-5">
-              {saleActive && (
-                <span style={{ background: '#ffffff', color: '#B22234' }}
-                  className="inline-block font-black px-3 py-1.5 rounded-full text-xs tracking-widest whitespace-nowrap border-2 border-[#0A1F44]">
-                  🇺🇸 30% OFF — LABORDAY30
-                </span>
-              )}
               {['Third Party Lab Tested', 'Fast Shipping', 'Free Shipping on $250+'].map((badge) => (
                 <span
                   key={badge}
@@ -84,16 +77,6 @@ export default async function Home() {
                 Shop Now
               </Link>
             </div>
-            {saleActive && (
-              <p className="text-white/90 text-sm font-semibold mt-3">
-                Use code{' '}
-                <span style={{ background: '#ffffff', color: '#B22234' }}
-                  className="font-black px-2 py-0.5 rounded-full text-xs tracking-widest border border-[#0A1F44]">
-                  LABORDAY30
-                </span>
-                {' '}for 30% off — Labor Day Sale
-              </p>
-            )}
           </div>
         </div>
       </section>
