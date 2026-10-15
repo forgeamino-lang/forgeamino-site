@@ -6,6 +6,7 @@ import { useCart } from '../../components/CartContext'
 import { Trash2, Plus, Minus } from 'lucide-react'
 import { computeBulkDiscount, nextBulkTier } from '../../lib/bulkDiscount'
 import { getProductBySlug } from '../../lib/products'
+import PairingSuggestions from '../../components/PairingSuggestions'
 
 export default function CartPage() {
   const { cart, removeItem, updateQuantity, cartTotal } = useCart()
@@ -115,6 +116,8 @@ export default function CartPage() {
           </div>
         ))}
       </div>
+
+      <PairingSuggestions mode="cart" />
 
       {/* Order total */}
       <div className="bg-white rounded-lg p-6 shadow-sm">

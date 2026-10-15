@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { PRODUCTS, getProductBySlug, formatPrice } from '../../../../lib/products'
 import AddToCartButton from './AddToCartButton'
+import PairingSuggestions from '../../../../components/PairingSuggestions'
 import CoaSelector from '../../../../components/CoaSelector'
 import { computeShipping } from '../../../../lib/shipping'
 
@@ -199,6 +200,8 @@ export default function ProductPage({ params }) {
           )}
 
           <AddToCartButton product={product} />
+
+          {!isComingSoon && <PairingSuggestions mode="product" slug={product.slug} />}
 
           {/* Payment info */}
           <div className="mt-5 p-4 bg-[#f0f7ff] rounded-lg border border-[#2196f3]/20">
