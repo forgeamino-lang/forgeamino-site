@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { getSaleActive } from '../lib/siteConfig'
+import { getSaleActive, getHolidayOfferRaw } from '../lib/siteConfig'
+import { buildOffers, parseHolidayOffer } from '../lib/offers'
+import OffersCarousel from '../components/OffersCarousel'
 
 export const metadata = {
   title: { absolute: 'Forge Amino | High-Quality Research Peptides' },
@@ -17,6 +19,7 @@ export const metadata = {
 
 export default async function Home() {
   const saleActive = await getSaleActive()
+  const offers = buildOffers(parseHolidayOffer(await getHolidayOfferRaw()))
   return (
     <div>
       {/* ── HERO ── */}
@@ -94,6 +97,9 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── OFFERS CAROUSEL ── */}
+      <OffersCarousel slides={offers} />
     </div>
   )
 }
