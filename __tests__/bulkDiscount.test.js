@@ -86,3 +86,21 @@ describe('nextBulkTier nudges', () => {
     expect(nextBulkTier(getProductBySlug('bac-water-30ml'), 1)).toBeNull()
   })
 })
+
+describe('chooseDiscount with the first-order discount', () => {
+  test('first order 15% beats FRIENDS 10%', () => {
+    expect(chooseDiscount({ codeAmount: 14, firstOrderAmount: 21 })).toBe('first_order')
+  })
+  test('multi-vial 20% beats first order 15%', () => {
+    expect(chooseDiscount({ bulkAmount: 70, firstOrderAmount: 52.5 })).toBe('bulk')
+  })
+  test('FAMILY pricing that saves more beats first order', () => {
+    expect(chooseDiscount({ codeAmount: 50, firstOrderAmount: 21 })).toBe('code')
+  })
+  test('tie between first order and a code goes to first order', () => {
+    expect(chooseDiscount({ codeAmount: 21, firstOrderAmount: 21 })).toBe('first_order')
+  })
+  test('member pricing still exempt', () => {
+    expect(chooseDiscount({ codeAmount: 100, firstOrderAmount: 300, memberPricing: true })).toBe('member')
+  })
+})

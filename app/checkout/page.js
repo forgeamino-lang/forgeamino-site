@@ -11,6 +11,7 @@ import { getProductBySlug } from '../../lib/products'
 import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../lib/bulkDiscount'
 import { suggestEmailCorrection } from '../../lib/emailCheck'
 import { normalizeCreditCode, looksLikeCreditCode, STORE_CREDIT_LABEL } from '../../lib/storeCredit'
+import { canCheckFirstOrder, firstOrderAmount, FIRST_ORDER_LABEL, FIRST_ORDER_PCT } from '../../lib/firstOrder'
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -76,6 +77,8 @@ const [promoLoading, setPromoLoading] = useState(false)
 // Store credit (single-use dollar credit, e.g. BACK67-T6DVR) — rules in lib/storeCredit.js
 const [creditPreview, setCreditPreview] = useState(null) // { valid, code, amount, min_order, expires_at } | { valid:false, message }
 const [creditLoading, setCreditLoading] = useState(false)
+// First-order discount (15%, automatic) — rules in lib/firstOrder.js
+const [firstOrder, setFirstOrder] = useState(null) // { eligible, checked } | null
 
 // ── Lut Turbo (Pay by Bank / ACH) state ──────────────────────────────────
 const [lutCartId] = useState(() => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `cart-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -112,6 +115,26 @@ const params = new URLSearchParams(window.location.search)
 const c = normalizeCreditCode(params.get('credit') || sessionStorage.getItem('storeCredit') || '')
 if (c) setForm(f => ({ ...f, storeCreditCode: c }))
 }, [])
+
+// Check first-order eligibility once email + street + ZIP are filled in
+// (phone used when present). Debounced; the orders API re-checks.
+useEffect(() => {
+const input = { email: form.email, phone: form.phone, street: form.street, zip: form.zip }
+if (!canCheckFirstOrder(input)) { setFirstOrder(null); return }
+const timer = setTimeout(async () => {
+try {
+const r = await fetch('/api/first-order/check', {
+method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+body: JSON.stringify(input),
+})
+const j = await r.json()
+setFirstOrder({ eligible: !!j?.eligible, checked: !!j?.checked })
+} catch {
+setFirstOrder(null)
+}
+}, 700)
+return () => clearTimeout(timer)
+}, [form.email, form.phone, form.street, form.zip])
 
 useEffect(() => {
 // Need at least a 5-digit zip and a state to look up
@@ -161,8 +184,11 @@ const codeDiscountAmount = affDiscountAmount + promoDiscountAmount
 const bulk = computeBulkDiscount(cart)
 const bulkByslug = Object.fromEntries(bulk.per_line.map(l => [l.slug, l]))
 const memberPricing = !!(affPreview?.valid && affPreview.member_pricing && affDiscountAmount > 0)
-const discountChoice = chooseDiscount({ bulkAmount: bulk.discount_amount, codeAmount: codeDiscountAmount, memberPricing })
+const firstOrderAmt = firstOrder?.eligible ? firstOrderAmount(cartTotal) : 0
+const discountChoice = chooseDiscount({ bulkAmount: bulk.discount_amount, codeAmount: codeDiscountAmount, firstOrderAmount: firstOrderAmt, memberPricing })
 const bulkApplied = discountChoice === 'bulk'
+const firstOrderApplied = discountChoice === 'first_order'
+const codeDeclinedForFirst = firstOrderApplied && codeDiscountAmount > 0
 const codesApplied = discountChoice === 'code' || discountChoice === 'member'
 const typedCode = (affPreview?.valid ? (affPreview.code || form.affiliateCode.trim().toUpperCase()) : '') ||
 (promoPreview?.valid ? (promoPreview.code || form.promoCode.trim().toUpperCase()) : '')
@@ -171,7 +197,7 @@ const codeDeclinedForBulk = bulkApplied && codeDiscountAmount > 0
 // Customer's code beat the multi-vial discount (e.g. FAMILY pricing).
 const bulkDeclinedForCode = discountChoice === 'code' && bulk.discount_amount > 0
 
-const discountAmount = bulkApplied ? bulk.discount_amount : (codesApplied ? codeDiscountAmount : 0)
+const discountAmount = bulkApplied ? bulk.discount_amount : firstOrderApplied ? firstOrderAmt : (codesApplied ? codeDiscountAmount : 0)
 // Store credit stacks with everything and comes off last. The minimum order
 // is checked against the product subtotal before discounts; the credit never
 // takes the subtotal below $0. The orders API re-checks all of this.
@@ -768,7 +794,7 @@ ${affLoading || !form.affiliateCode.trim()
 </button>
 </div>
 {affPreview?.valid && (
-<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 && !codeDeclinedForBulk ? ` — saving $${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
+<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 && !codeDeclinedForBulk && !codeDeclinedForFirst ? ` — saving $${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
 )}
 {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
 <p className="mt-1.5 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
@@ -825,6 +851,15 @@ Your ${Number(creditPreview.amount).toFixed(0)} credit applies to orders of ${cr
 
 <div className="bg-white rounded-lg p-6 shadow-sm sticky top-24">
 <h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Order Summary</h2>
+{firstOrderApplied ? (
+<div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+<strong>Welcome to Forge Amino!</strong> 15% off your first order has been applied.
+</div>
+) : !firstOrder ? (
+<div className="mb-4 rounded-lg border border-blue-100 bg-[#f0f7ff] px-3 py-2 text-xs text-[#0d1b2a]">
+<strong>New customer?</strong> 15% off your first order is applied automatically once you enter your email and shipping address.
+</div>
+) : null}
 
 <div className="space-y-3 mb-4">
 {cart.map(item => (
@@ -865,6 +900,24 @@ Your ${Number(creditPreview.amount).toFixed(0)} credit applies to orders of ${cr
 <span>Checking promo code…</span>
 <span className="animate-pulse">—</span>
 </div>
+)}
+{firstOrderApplied && (
+<div className="flex justify-between items-center text-sm">
+<span className="text-green-700 font-medium">{FIRST_ORDER_LABEL} ({Math.round(FIRST_ORDER_PCT * 100)}% off)</span>
+<span className="text-green-700 font-medium">−${firstOrderAmt.toFixed(2)}</span>
+</div>
+)}
+{codeDeclinedForFirst && (
+<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 leading-relaxed">
+<strong>Your first-order 15% saves more than {typedCode || 'your code'}</strong>{' '}
+(${firstOrderAmt.toFixed(2)} vs ${codeDiscountAmount.toFixed(2)}), so we&apos;ve applied 15% instead. Discounts don&apos;t stack.
+{affPreview?.valid ? ' Your affiliate still receives credit for this order.' : ''}
+</div>
+)}
+{firstOrder?.eligible && !firstOrderApplied && (bulkApplied || codesApplied) && (
+<p className="text-xs text-gray-500 leading-relaxed">
+You qualify for 15% off your first order, but your {bulkApplied ? 'multi-vial discount' : (typedCode || 'code')} saves you more, so we&apos;ve applied that instead.
+</p>
 )}
 {bulkApplied && (
 <div className="flex justify-between items-center text-sm">

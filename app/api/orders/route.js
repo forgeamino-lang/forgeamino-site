@@ -8,6 +8,7 @@ import * as Sentry from '@sentry/nextjs'
 import { validateLineItems, computeOrderTotals, requiresDateOfBirth, validateDateOfBirth } from '../../../lib/orderValidation'
 import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../../lib/bulkDiscount'
 import { normalizeCreditCode, evaluateStoreCredit } from '../../../lib/storeCredit'
+import { isFirstOrder, firstOrderAmount, FIRST_ORDER_LABEL } from '../../../lib/firstOrder'
 import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
 import { submitOrderToTrybe, getTrybeVisitorId } from '../../../lib/trybe'
@@ -441,9 +442,25 @@ const bulk = computeBulkDiscount(validated_line_items)
 const code_discount_amount = server_discount_amount
 const member_pricing = form_typed_raw.length > 0 && Array.isArray(form_email_whitelist) &&
 form_email_whitelist.length > 0 && code_discount_amount > 0
+// ── First-order discount (15%, automatic, lib/firstOrder.js) ───────────
+// Checked against every earlier order by email, phone AND address, so a
+// fresh email at the same house doesn't qualify. Fails closed.
+let first_order_eligible = false
+try {
+first_order_eligible = await isFirstOrder(supabase, {
+email: customer_email,
+phone: customer_phone,
+street: shipping_address?.street,
+zip: shipping_address?.zip,
+})
+} catch (firstOrderErr) {
+console.error('First-order check failed (no discount applied):', firstOrderErr?.message || firstOrderErr)
+}
+const first_order_amount = first_order_eligible ? firstOrderAmount(server_subtotal) : 0
 const discount_choice = chooseDiscount({
 bulkAmount: bulk.discount_amount,
 codeAmount: code_discount_amount,
+firstOrderAmount: first_order_amount,
 memberPricing: member_pricing,
 })
 let discount_source = discount_choice === 'none' ? null : discount_choice
@@ -461,6 +478,17 @@ final_subtotal = Number((server_subtotal - server_discount_amount).toFixed(2))
 final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
 final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
 discount_label = BULK_DISCOUNT_LABEL
+} else if (discount_choice === 'first_order') {
+code_discount_declined = code_discount_amount
+if (promo_discount_applied) {
+promo_discount_applied = false
+promo_blocked_by_bulk = true // same handling: not redeemed, attribution kept
+}
+server_discount_amount = first_order_amount
+final_subtotal = Number((server_subtotal - server_discount_amount).toFixed(2))
+final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
+final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
+discount_label = FIRST_ORDER_LABEL
 }
 // ── Store credit (single-use dollar credit, e.g. BACK67-T6DVR) ─────────
 // Stacks with everything: it comes off LAST, after whichever discount the
@@ -528,6 +556,7 @@ discount_source,
 ...(discount_label ? { discount_label } : {}),
 ...(bulk.discount_amount > 0 ? { bulk_discount_available: bulk.discount_amount } : {}),
 ...(code_discount_declined > 0 ? { code_discount_declined } : {}),
+...(first_order_eligible ? { first_order_eligible: true, first_order_discount_available: first_order_amount } : {}),
 ...(store_credit_claimed ? { store_credit_code: credit_code_clean, store_credit_amount } : {}),
 }
 
