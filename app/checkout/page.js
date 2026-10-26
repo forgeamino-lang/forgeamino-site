@@ -819,7 +819,7 @@ autoComplete="off"
 spellCheck="false"
 value={form.promoCode}
 onChange={handleChange}
-placeholder="e.g. HALLOWEEN25"
+placeholder="Sale code"
 className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
 />
 <button
