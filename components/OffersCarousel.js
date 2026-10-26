@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { HalloweenSlideArt } from './HalloweenArt'
 
 // Homepage offers carousel. Slides come from lib/offers.js (server side).
 // Auto-advances every 5.5s; pauses while hovered, focused or touched, and
@@ -15,6 +16,7 @@ const TONES = {
   sky: 'from-[#0b5394] via-[#1976d2] to-[#2196f3]',
   slate: 'from-[#1a2e45] via-[#22405f] to-[#2e5a85]',
   sale: 'from-[#8e1b2a] via-[#B22234] to-[#0A1F44]',
+  halloween: 'from-[#12081f] via-[#2a1140] to-[#5b1d06]',
 }
 
 export default function OffersCarousel({ slides = [] }) {
@@ -78,16 +80,17 @@ export default function OffersCarousel({ slides = [] }) {
                 aria-roledescription="slide"
                 aria-label={`${k + 1} of ${n}: ${s.headline}`}
                 aria-hidden={k !== i}
-                className={`w-full shrink-0 bg-gradient-to-br ${TONES[s.tone] || TONES.navy} text-white`}
+                className={`relative w-full shrink-0 bg-gradient-to-br ${TONES[s.tone] || TONES.navy} text-white`}
               >
-                <div className="px-6 sm:px-20 py-9 sm:py-12 min-h-[230px] sm:min-h-[250px] flex flex-col justify-center gap-3 max-w-3xl">
+                {s.tone === 'halloween' && <HalloweenSlideArt />}
+                <div className="relative px-6 sm:px-20 py-9 sm:py-12 min-h-[230px] sm:min-h-[250px] flex flex-col justify-center gap-3 max-w-3xl">
                   <p className="text-[11px] sm:text-xs font-bold tracking-[0.2em] uppercase text-white/80">{s.eyebrow}</p>
                   <h2 className="text-2xl sm:text-4xl font-black leading-tight tracking-tight [text-wrap:balance]">{s.headline}</h2>
                   {s.subline && <p className="text-sm sm:text-base text-white/90 leading-relaxed max-w-xl">{s.subline}</p>}
                   {s.code && (
                     <p className="text-sm text-white/90">
                       Use code{' '}
-                      <span className="inline-block bg-white text-[#B22234] font-black tracking-widest text-xs px-2.5 py-1 rounded-full align-middle">{s.code}</span>
+                      <span className={`inline-block font-black tracking-widest text-xs px-2.5 py-1 rounded-full align-middle ${s.tone === 'halloween' ? 'bg-[#ff8a1f] text-[#12081f]' : 'bg-white text-[#B22234]'}`}>{s.code}</span>
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2">

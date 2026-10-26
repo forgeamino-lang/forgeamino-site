@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '../../../../lib/supabase'
 import { getAccessToken, fetchQboItems } from '../../../../lib/quickbooks'
 import { getProductBySlug } from '../../../../lib/products'
+import { isCodeLive } from '../../../../lib/promoCodes'
 
 // /api/affiliate/preview
 //
@@ -24,7 +25,7 @@ async function lookupAffiliate(code) {
 const supabase = createServerClient()
 const { data } = await supabase
 .from('affiliates')
-.select('code, name, discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist, active, max_uses, expires_at')
+.select('code, name, discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist, active, max_uses, expires_at, starts_at, is_promo')
 .ilike('code', code)
 .eq('active', true)
 .maybeSingle()
@@ -44,9 +45,10 @@ return (count || 0) >= aff.max_uses
 }
 
 // Returns true if the code has passed its expiry date.
+// Also covers codes that haven't started yet (starts_at, e.g. a sale code
+// created ahead of the sale).
 function isExpired(aff) {
-if (!aff.expires_at) return false
-return new Date() > new Date(aff.expires_at)
+return !isCodeLive(aff)
 }
 
 function isEmailAllowed(aff, email) {
@@ -110,6 +112,7 @@ if (await isExhausted(aff)) return NextResponse.json({ valid: false, error: 'cod
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 discount_pct: Number(aff.discount_pct || 0),
 requires_email_whitelist: Array.isArray(aff.email_whitelist) && aff.email_whitelist.length > 0,
@@ -139,6 +142,7 @@ if (!isEmailAllowed(aff, email)) {
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 discount_pct: 0,
 discount_amount: 0,
@@ -155,6 +159,7 @@ if (!line_items.length) {
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 requires_cart_for_preview: true,
 discount_amount: 0,
@@ -164,6 +169,7 @@ const { discount_amount } = await computeCostDiscount(line_items)
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 discount_to_cost: true,
 discount_amount,
@@ -177,6 +183,7 @@ if (!line_items.length || !aff.product_prices) {
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 requires_cart_for_preview: true,
 discount_amount: 0,
@@ -186,6 +193,7 @@ const { discount_amount } = computeFixedPriceDiscount(line_items, aff.product_pr
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 discount_to_fixed_price: true,
 discount_amount,
@@ -197,6 +205,7 @@ member_pricing,
 return NextResponse.json({
 valid: true,
 code: aff.code,
+is_promo: !!aff.is_promo,
 name: aff.name,
 discount_pct: Number(aff.discount_pct || 0),
 whitelisted: true,

@@ -11,6 +11,7 @@ import { normalizeCreditCode, evaluateStoreCredit } from '../../../lib/storeCred
 import { isFirstOrder, firstOrderAmount, FIRST_ORDER_LABEL } from '../../../lib/firstOrder'
 import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
+import { isCodeLive, combineCodeDiscounts } from '../../../lib/promoCodes'
 import { submitOrderToTrybe, getTrybeVisitorId } from '../../../lib/trybe'
 
 export async function POST(request) {
@@ -31,8 +32,8 @@ subtotal,
 tax_amount,
 tax_rate,
 total,
-affiliate_code,
-promo_code,
+affiliate_code: affiliate_code_in,
+promo_code: promo_code_in,
 store_credit_code,
 lut_cart_id,
 lut_pay_token,
@@ -111,6 +112,29 @@ shipping_method: trusted_shipping_method,
 shipping_amount: server_shipping_amount,
 }
 
+// ── Sale codes typed in the affiliate box ─────────────────────────────
+// A promo code (is_promo, e.g. HALLOWEEN25) never takes affiliate credit.
+// If the customer typed it in the affiliate box, treat it as their promo
+// code (when the promo box is empty) and leave the affiliate slot empty so
+// a ?ref= / sticky-locked rep still gets the order.
+let affiliate_code = affiliate_code_in
+let promo_code = promo_code_in
+if (typeof affiliate_code === 'string' && affiliate_code.trim()) {
+try {
+const { data: typedRow } = await supabase
+.from('affiliates')
+.select('code, is_promo')
+.ilike('code', affiliate_code.trim())
+.maybeSingle()
+if (typedRow?.is_promo) {
+if (!(typeof promo_code === 'string' && promo_code.trim())) promo_code = typedRow.code
+affiliate_code = ''
+}
+} catch (promoRouteErr) {
+console.error('Promo-in-affiliate-box check failed:', promoRouteErr)
+}
+}
+
 // ── Resolve affiliate code with sticky first-touch attribution ─────────
 // Once a customer's email is mapped to an affiliate code in
 // customer_affiliate_attribution, every future order picks up that locked
@@ -121,6 +145,7 @@ let affiliate_code_clean = null
 let affiliate_id = null
 let attribution_source = 'none' // 'locked' | 'form' | 'none'
 let should_write_attribution = false
+let stale_promo_lock = false
 const email_lower = typeof customer_email === 'string'
 ? customer_email.trim().toLowerCase()
 : ''
@@ -134,9 +159,27 @@ const { data: lock } = await supabase
 .eq('customer_email', email_lower)
 .maybeSingle()
 if (lock?.affiliate_code) {
+// A lock pointing at a sale/promo code (e.g. LABORDAY30, from before
+// promo codes had their own box) isn't a real affiliate: ignore it so
+// this order's affiliate can claim the customer, and replace the lock.
+let lockIsPromo = false
+try {
+const { data: lockRow } = await supabase
+.from('affiliates')
+.select('is_promo')
+.ilike('code', lock.affiliate_code)
+.maybeSingle()
+lockIsPromo = !!lockRow?.is_promo
+} catch (lockRowErr) {
+console.error('Lock code promo check failed:', lockRowErr)
+}
+if (lockIsPromo) {
+stale_promo_lock = true
+} else {
 affiliate_code_clean = lock.affiliate_code
 affiliate_id = lock.affiliate_id || null
 attribution_source = 'locked'
+}
 }
 } catch (lookupErr) {
 console.error('Sticky attribution lookup failed:', lookupErr)
@@ -187,11 +230,11 @@ affiliate_code_clean = trimmed
 try {
 const { data: aff } = await supabase
 .from('affiliates')
-.select('id, code, discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist')
+.select('id, code, discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist, starts_at, expires_at, is_promo')
 .ilike('code', trimmed)
 .eq('active', true)
 .maybeSingle()
-if (aff) {
+if (aff && isCodeLive(aff) && !aff.is_promo) {
 affiliate_id = aff.id
 affiliate_code_clean = aff.code
 attribution_source = 'form'
@@ -249,11 +292,11 @@ if (attribution_source === 'locked' && !form_code_typed_matches && form_typed_ra
 try {
 const { data: typed_aff } = await supabase
 .from('affiliates')
-.select('discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist')
+.select('discount_pct, discount_to_cost, discount_to_fixed_price, product_prices, email_whitelist, starts_at, expires_at, is_promo')
 .ilike('code', form_typed_raw)
 .eq('active', true)
 .maybeSingle()
-if (typed_aff) {
+if (typed_aff && isCodeLive(typed_aff) && !typed_aff.is_promo) {
 // Overwrite form_discount_* with the typed code's config so the
 // discount calculation below uses the right values.
 form_discount_pct = Number(typed_aff.discount_pct || 0)
@@ -359,6 +402,7 @@ let promo_code_clean = null
 let promo_one_time = false
 let promo_affiliated_with = null
 let promo_discount_applied = false
+let promo_beat_affiliate_discount = false
 let effective_promo_raw = typeof promo_code === 'string' ? promo_code.trim() : ''
 if (!effective_promo_raw && affiliate_code_clean) {
 try {
@@ -381,12 +425,12 @@ if (promo_raw.length > 0) {
 try {
 const { data: promo } = await supabase
 .from('affiliates')
-.select('id, code, discount_pct, email_whitelist, one_time_per_customer, affiliated_with')
+.select('id, code, discount_pct, email_whitelist, one_time_per_customer, affiliated_with, starts_at, expires_at')
 .ilike('code', promo_raw)
 .eq('active', true)
 .or('expires_at.is.null,expires_at.gt.now()')
 .maybeSingle()
-if (promo) {
+if (promo && isCodeLive(promo)) {
 promo_code_clean = promo.code
 promo_one_time = !!promo.one_time_per_customer
 promo_affiliated_with = promo.affiliated_with || null
@@ -414,12 +458,18 @@ const promo_whitelist = Array.isArray(promo.email_whitelist)
 const promo_whitelist_ok = !promo_whitelist || (email_lower && promo_whitelist.includes(email_lower))
 const promo_pct = Number(promo.discount_pct || 0)
 if (promo_whitelist_ok && promo_pct > 0) {
-const promo_discount = Number((final_subtotal * promo_pct).toFixed(2))
-server_discount_amount = Number((server_discount_amount + promo_discount).toFixed(2))
-final_subtotal = Number((final_subtotal - promo_discount).toFixed(2))
+// Code discounts don't stack: the customer gets the larger of the
+// affiliate code's discount and this promo (lib/promoCodes.js).
+const promo_discount = Number((server_subtotal * promo_pct).toFixed(2))
+const best = combineCodeDiscounts(server_discount_amount, promo_discount)
+if (best.source === 'promo') {
+server_discount_amount = best.amount
+final_subtotal = Number((server_subtotal - server_discount_amount).toFixed(2))
 final_tax_amount = Number((final_subtotal * trusted_tax_rate).toFixed(2))
 final_total = Number((final_subtotal + final_tax_amount + server_shipping_amount).toFixed(2))
 promo_discount_applied = true
+promo_beat_affiliate_discount = true
+}
 }
 }
 }
@@ -441,7 +491,7 @@ console.error('Promo code lookup failed:', promoErr)
 const bulk = computeBulkDiscount(validated_line_items)
 const code_discount_amount = server_discount_amount
 const member_pricing = form_typed_raw.length > 0 && Array.isArray(form_email_whitelist) &&
-form_email_whitelist.length > 0 && code_discount_amount > 0
+form_email_whitelist.length > 0 && code_discount_amount > 0 && !promo_beat_affiliate_discount
 // ── First-order discount (15%, automatic, lib/firstOrder.js) ───────────
 // Checked against every earlier order by email, phone AND address, so a
 // fresh email at the same house doesn't qualify. Fails closed.
@@ -684,7 +734,7 @@ customer_email: email_lower,
 affiliate_code: affiliate_code_clean,
 affiliate_id: affiliate_id,
 first_order_number: order_number,
-}, { onConflict: 'customer_email', ignoreDuplicates: true })
+}, { onConflict: 'customer_email', ignoreDuplicates: !stale_promo_lock })
 } catch (attrErr) {
 // Non-fatal; the order is already saved and tagged correctly.
 console.error('Sticky attribution write failed:', attrErr)

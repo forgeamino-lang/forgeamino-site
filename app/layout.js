@@ -7,6 +7,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import AgeGate from '../components/AgeGate'
 import { Analytics } from '@vercel/analytics/next'
 import AffiliateTracker from '../components/AffiliateTracker'
+import HolidayBanner from '../components/HolidayBanner'
 import Script from 'next/script'
 
 const BASE_URL = 'https://www.forgeamino.com'
@@ -148,6 +149,7 @@ export default function RootLayout({ children }) {
           <AgeGate />
           <AffiliateTracker />
 <CartProvider>
+            <HolidayBanner />
             <Header />
             <main className="min-h-screen">
               {children}

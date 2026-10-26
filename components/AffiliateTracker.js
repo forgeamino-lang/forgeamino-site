@@ -15,6 +15,11 @@ const credit = params.get('credit')
 if (credit) {
 sessionStorage.setItem('storeCredit', credit.trim().toUpperCase())
 }
+// Sale code from an email or social link (?promo=HALLOWEEN25)
+const promo = params.get('promo')
+if (promo) {
+sessionStorage.setItem('promoCode', promo.trim().toUpperCase())
+}
 }, [])
 return null
 }

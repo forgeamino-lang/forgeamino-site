@@ -12,6 +12,7 @@ import { computeBulkDiscount, chooseDiscount, BULK_DISCOUNT_LABEL } from '../../
 import { suggestEmailCorrection } from '../../lib/emailCheck'
 import { normalizeCreditCode, looksLikeCreditCode, STORE_CREDIT_LABEL } from '../../lib/storeCredit'
 import { canCheckFirstOrder, firstOrderAmount, FIRST_ORDER_LABEL, FIRST_ORDER_PCT } from '../../lib/firstOrder'
+import { combineCodeDiscounts } from '../../lib/promoCodes'
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -104,9 +105,28 @@ cache: 'no-store',
 body: JSON.stringify({ code: refCode, email: '', line_items: [] }),
 })
 .then(r => r.json())
-.then(j => setAffPreview(j?.valid ? j : { valid: false }))
+.then(j => {
+if (j?.valid && j.is_promo) {
+setForm(f => ({ ...f, affiliateCode: '', promoCode: j.code || refCode }))
+setAffPreview(null)
+setPromoPreview(j)
+return
+}
+setAffPreview(j?.valid ? j : { valid: false })
+})
 .catch(() => setAffPreview({ valid: false }))
 .finally(() => setAffLoading(false))
+}, [])
+
+// Pre-fill a sale code from an email/social link (?promo=HALLOWEEN25),
+// captured on any page by AffiliateTracker.
+useEffect(() => {
+const params = new URLSearchParams(window.location.search)
+const p = (params.get('promo') || sessionStorage.getItem('promoCode') || '').trim().toUpperCase()
+if (!p) return
+setForm(f => ({ ...f, promoCode: p }))
+applyPromoCode(p)
+// eslint-disable-next-line react-hooks/exhaustive-deps
 }, [])
 
 // Pre-fill a store credit code from the win-back email link (?credit=CODE),
@@ -175,8 +195,13 @@ const promoDiscountFromPct = Math.round(cartTotal * promoDiscountPct * 100) / 10
 const promoDiscountFromAmt = promoPreview?.valid && Number(promoPreview.discount_amount) > 0 ? Number(promoPreview.discount_amount) : 0
 const promoDiscountAmount = Math.max(promoDiscountFromPct, promoDiscountFromAmt)
 
-// Combined discount from both codes
-const codeDiscountAmount = affDiscountAmount + promoDiscountAmount
+// Code discounts don't stack: the larger of the affiliate code's discount
+// and the sale/promo code applies (same rule as the orders API).
+const bestCode = combineCodeDiscounts(affDiscountAmount, promoDiscountAmount)
+const codeDiscountAmount = bestCode.amount
+const promoWins = bestCode.source === 'promo'
+const affWins = bestCode.source === 'affiliate'
+const codesCompeted = affDiscountAmount > 0 && promoDiscountAmount > 0
 
 // Multi-vial discount (5+ = 20%, 10+ = 30% per item) — never stacked with
 // codes. Mirrors the server rule in app/api/orders/route.js via
@@ -184,15 +209,16 @@ const codeDiscountAmount = affDiscountAmount + promoDiscountAmount
 // codes (OWNERS) are exempt.
 const bulk = computeBulkDiscount(cart)
 const bulkByslug = Object.fromEntries(bulk.per_line.map(l => [l.slug, l]))
-const memberPricing = !!(affPreview?.valid && affPreview.member_pricing && affDiscountAmount > 0)
+const memberPricing = !!(affPreview?.valid && affPreview.member_pricing && affDiscountAmount > 0 && affWins)
 const firstOrderAmt = firstOrder?.eligible ? firstOrderAmount(cartTotal) : 0
 const discountChoice = chooseDiscount({ bulkAmount: bulk.discount_amount, codeAmount: codeDiscountAmount, firstOrderAmount: firstOrderAmt, memberPricing })
 const bulkApplied = discountChoice === 'bulk'
 const firstOrderApplied = discountChoice === 'first_order'
 const codeDeclinedForFirst = firstOrderApplied && codeDiscountAmount > 0
 const codesApplied = discountChoice === 'code' || discountChoice === 'member'
-const typedCode = (affPreview?.valid ? (affPreview.code || form.affiliateCode.trim().toUpperCase()) : '') ||
-(promoPreview?.valid ? (promoPreview.code || form.promoCode.trim().toUpperCase()) : '')
+const promoLabel = promoPreview?.valid ? (promoPreview.code || form.promoCode.trim().toUpperCase()) : ''
+const affLabel = affPreview?.valid ? (affPreview.code || form.affiliateCode.trim().toUpperCase()) : ''
+const typedCode = promoWins ? promoLabel : (affLabel || promoLabel)
 // Customer typed a code that carries a discount, and the multi-vial discount won.
 const codeDeclinedForBulk = bulkApplied && codeDiscountAmount > 0
 // Customer's code beat the multi-vial discount (e.g. FAMILY pricing).
@@ -296,6 +322,14 @@ price: i.price, quantity: i.quantity,
 }),
 })
 const j = await r.json()
+if (j?.valid && j.is_promo) {
+// A sale code typed in the affiliate box: move it to the promo box so
+// the affiliate box stays free for the rep.
+setForm(f => ({ ...f, affiliateCode: '', promoCode: j.code || raw.toUpperCase() }))
+setAffPreview(null)
+setPromoPreview(j)
+return
+}
 setAffPreview(j?.valid ? j : { valid: false })
 } catch {
 setAffPreview({ valid: false })
@@ -304,8 +338,8 @@ setAffLoading(false)
 }
 }
 
-async function applyPromoCode() {
-const raw = (form.promoCode || '').trim()
+async function applyPromoCode(codeOverride) {
+const raw = (typeof codeOverride === 'string' ? codeOverride : form.promoCode || '').trim()
 if (!raw) { setPromoPreview(null); return }
 setPromoLoading(true)
 try {
@@ -323,6 +357,13 @@ price: i.price, quantity: i.quantity,
 }),
 })
 const j = await r.json()
+// A rep's code typed in the promo box: move it to the affiliate box.
+if (j?.valid && !j.is_promo && !form.affiliateCode.trim()) {
+setForm(f => ({ ...f, promoCode: '', affiliateCode: j.code || raw.toUpperCase() }))
+setPromoPreview(null)
+setAffPreview(j)
+return
+}
 setPromoPreview(j?.valid ? j : { valid: false })
 } catch {
 setPromoPreview({ valid: false })
@@ -724,47 +765,9 @@ className="px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wide bg-[
 <div className="space-y-6">
 {/* Promo & Affiliate Codes */}
 <div className="bg-white rounded-lg p-6 shadow-sm">
-<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Affiliate Code</h2>
+<h2 className="font-bold text-[#0d1b2a] text-sm tracking-widest uppercase mb-4">Codes</h2>
 
-{/* PROMO_CODE_HIDDEN_START */}{false && (<>
-{/* Promo Code */}
-<div className="mb-5">
-<label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Promo Code</label>
-<p className="text-xs text-gray-400 mb-2">Have a sale or discount code? Enter it here.</p>
-<div className="flex gap-2">
-<input
-name="promoCode"
-type="text"
-autoComplete="off"
-spellCheck="false"
-value={form.promoCode}
-onChange={handleChange}
-placeholder="e.g. SUMMER15"
-className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
-/>
-<button
-type="button"
-onClick={applyPromoCode}
-disabled={promoLoading || !form.promoCode.trim()}
-className={`px-4 py-3 rounded-lg text-sm font-bold tracking-wider uppercase transition-all whitespace-nowrap
-${promoLoading || !form.promoCode.trim()
-? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-: 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
-}`}
->
-{promoLoading ? '…' : 'Apply'}
-</button>
-</div>
-{promoPreview?.valid && (
-<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.promoCode.trim().toUpperCase()} applied{promoDiscountAmount > 0 ? ` — saving ${promoDiscountAmount.toFixed(2)}` : ''}</p>
-)}
-{promoPreview && !promoPreview.valid && form.promoCode.trim() && (
-<p className="mt-1.5 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
-)}
-</div>
 
-<div className="border-t border-gray-100 my-4" />
-</>)}{/* PROMO_CODE_HIDDEN_END */}
 
 {/* Affiliate Code */}
 <div>
@@ -795,12 +798,51 @@ ${affLoading || !form.affiliateCode.trim()
 </button>
 </div>
 {affPreview?.valid && (
-<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 && !codeDeclinedForBulk && !codeDeclinedForFirst ? ` — saving $${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
+<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.affiliateCode.trim().toUpperCase()} applied{affDiscountAmount > 0 && affWins && !codeDeclinedForBulk && !codeDeclinedForFirst ? ` — saving $${affDiscountAmount.toFixed(2)}` : ' — affiliate credited'}</p>
 )}
 {affPreview && !affPreview.valid && form.affiliateCode.trim() && (
 <p className="mt-1.5 text-xs text-red-500">Code not recognized — check the spelling and try again.</p>
 )}
 </div>
+
+<div className="border-t border-gray-100 my-4" />
+
+{/* Promo Code */}
+<div>
+<label className="block text-xs text-gray-500 mb-1 uppercase tracking-wide">Sale or Promo Code</label>
+<p className="text-xs text-gray-400 mb-2">Running a sale? Enter the sale code here. You can still use a rep&apos;s code above.</p>
+<div className="flex gap-2">
+<input
+name="promoCode"
+type="text"
+autoComplete="off"
+spellCheck="false"
+value={form.promoCode}
+onChange={handleChange}
+placeholder="e.g. HALLOWEEN25"
+className="flex-1 px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-[#2196f3] focus:outline-none transition-colors text-sm uppercase tracking-wider"
+/>
+<button
+type="button"
+onClick={() => applyPromoCode()}
+disabled={promoLoading || !form.promoCode.trim()}
+className={`px-4 py-3 rounded-lg text-sm font-bold tracking-wider uppercase transition-all whitespace-nowrap
+${promoLoading || !form.promoCode.trim()
+? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+: 'bg-[#0d1b2a] text-white hover:bg-[#1a2e45] active:scale-95'
+}`}
+>
+{promoLoading ? '…' : 'Apply'}
+</button>
+</div>
+{promoPreview?.valid && (
+<p className="mt-1.5 text-xs font-semibold text-green-600">✓ {form.promoCode.trim().toUpperCase()} applied{promoDiscountAmount > 0 && promoWins && codesApplied ? ` — saving $${promoDiscountAmount.toFixed(2)}` : ''}</p>
+)}
+{promoPreview && !promoPreview.valid && form.promoCode.trim() && (
+<p className="mt-1.5 text-xs text-red-500">That code isn&apos;t active right now. Check the spelling, or the sale may not have started yet.</p>
+)}
+</div>
+
 </div>
 
 {/* Store Credit — collapsed to a link; opens on click, or by itself when a
@@ -957,7 +999,7 @@ so we&apos;ve applied the multi-vial discount instead. Discounts don&apos;t stac
 {bulkApplied && !codeDeclinedForBulk && (
 <p className="text-xs text-gray-500 leading-relaxed">The multi-vial discount can&apos;t be combined with discount codes.</p>
 )}
-{codesApplied && promoPreview?.valid && promoDiscountAmount > 0 && (
+{codesApplied && promoWins && promoPreview?.valid && promoDiscountAmount > 0 && (
 <div className="flex justify-between items-center text-sm">
 <span className="text-green-700 font-medium">
 {promoPreview.code || form.promoCode.trim().toUpperCase()} promo
@@ -965,6 +1007,11 @@ so we&apos;ve applied the multi-vial discount instead. Discounts don&apos;t stac
 </span>
 <span className="text-green-700 font-medium">−${promoDiscountAmount.toFixed(2)}</span>
 </div>
+)}
+{codesApplied && codesCompeted && (
+<p className="text-xs text-gray-500 leading-relaxed">
+Codes don&apos;t stack, so we&apos;ve applied {promoWins ? promoLabel : affLabel}, the bigger discount.{affLabel ? ` ${affLabel} still gets credit for this order.` : ''}
+</p>
 )}
 {promoPreview?.valid && promoDiscountAmount === 0 && (
 <div className="flex justify-between items-center text-sm text-green-700 font-medium">
@@ -978,7 +1025,7 @@ so we&apos;ve applied the multi-vial discount instead. Discounts don&apos;t stac
 <span className="animate-pulse">—</span>
 </div>
 )}
-{codesApplied && affPreview?.valid && affDiscountAmount > 0 && (
+{codesApplied && affWins && affPreview?.valid && affDiscountAmount > 0 && (
 <div className="flex justify-between items-center text-sm">
 <span className="text-green-700 font-medium">
 {affPreview.code || form.affiliateCode.trim().toUpperCase()} discount
