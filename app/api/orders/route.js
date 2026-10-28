@@ -13,6 +13,7 @@ import { verifyLabCookie } from '../../../lib/labAuth'
 import { chargeLutTransaction } from '../../../lib/lut'
 import { isCodeLive, combineCodeDiscounts } from '../../../lib/promoCodes'
 import { submitOrderToTrybe, getTrybeVisitorId } from '../../../lib/trybe'
+import { syncOrderToKlaviyo } from '../../../lib/klaviyo'
 
 export async function POST(request) {
 // Set once a store credit is claimed; cleared once the order is saved. The
@@ -839,6 +840,13 @@ tags: { area: 'orders', failure: 'quickbooks-sync' },
 broadcastOrderNotification(order).catch(e => {
 console.error('Push notification broadcast failed:', e?.message)
 // Notification is best-effort — never block or fail the order
+}),
+syncOrderToKlaviyo(order).catch(e => {
+console.error('Klaviyo sync failed:', { order_number, error: e?.message })
+Sentry.captureException(e, {
+extra: { order_number, customer_email },
+tags: { area: 'orders', failure: 'klaviyo-sync' },
+})
 }),
 submitOrderToTrybe(order, trybe_vid).catch(e => {
 console.error('Trybe order submission failed:', { order_number, error: e?.message })
