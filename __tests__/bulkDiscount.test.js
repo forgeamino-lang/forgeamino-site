@@ -7,7 +7,8 @@ import { getProductBySlug } from '../lib/products.js'
 //   wolverine-blend $105 blends        (eligible)
 //   bac-water-30ml  $30  supplies      (not eligible)
 //   r               $195 lab, hidden   (eligible — Lab peptides included)
-//   rx-pt-141            prescription  (not eligible)
+//   rx-semax-selank      prescription  (not eligible)
+//   pt-141-10mg     $70  peptides      (eligible)
 
 describe('tiers', () => {
   test('quantity thresholds', () => {
@@ -23,7 +24,8 @@ describe('tiers', () => {
     expect(isBulkEligible(getProductBySlug('bpc-157'))).toBe(true)
     expect(isBulkEligible(getProductBySlug('r'))).toBe(true)
     expect(isBulkEligible(getProductBySlug('bac-water-30ml'))).toBe(false)
-    expect(isBulkEligible(getProductBySlug('rx-pt-141'))).toBe(false)
+    expect(isBulkEligible(getProductBySlug('rx-semax-selank'))).toBe(false)
+    expect(isBulkEligible(getProductBySlug('pt-141-10mg'))).toBe(true)
     expect(isBulkEligible({ ...getProductBySlug('bpc-157'), bulkDiscount: false })).toBe(false)
   })
 })
