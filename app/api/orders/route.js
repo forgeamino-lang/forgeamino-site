@@ -786,6 +786,10 @@ id: data.id,
 order_number,
 customer_name,
 customer_email,
+// Printed on the QBO invoice PDF for the shipping/pharmacy team
+// (phone in the Phone custom field; DOB in the customer memo).
+customer_phone,
+customer_dob,
 // Embed AFTER-discount totals + discount fields so email + QBO sync
 // both see the right numbers. Without these overrides, downstream
 // builds (confirmation email subtotal/tax/total + QBO invoice line
