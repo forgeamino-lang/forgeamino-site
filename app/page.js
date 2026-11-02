@@ -3,6 +3,24 @@ import Image from 'next/image'
 import { getHolidayOfferRaw } from '../lib/siteConfig'
 import { buildOffers, parseHolidayOffer } from '../lib/offers'
 import OffersCarousel from '../components/OffersCarousel'
+import ProductCard from '../components/ProductCard'
+import { getProductBySlug } from '../lib/products'
+
+// Homepage best sellers (by units sold, last 90 days, public products only).
+// Linking product pages straight from the homepage passes it authority to
+// them, which helps Google crawl and rank them. Hidden, inactive or
+// out-of-stock items drop out automatically.
+const BEST_SELLER_SLUGS = [
+  'wolverine-blend',
+  'klow-blend',
+  'cjc1295nodac-ipamorelin',
+  'mots-c',
+  'glow-blend',
+  'nad-plus-1000mg',
+  'glutathione-1500mg',
+  'ghk-cu',
+  'bpc-157',
+]
 
 export const metadata = {
   title: { absolute: 'Forge Amino | High-Quality Research Peptides' },
@@ -19,6 +37,9 @@ export const metadata = {
 
 export default async function Home() {
   const offers = buildOffers(parseHolidayOffer(await getHolidayOfferRaw()))
+  const bestSellers = BEST_SELLER_SLUGS
+    .map(getProductBySlug)
+    .filter(p => p && !p.hidden && p.inStock && p.price > 0)
   return (
     <div>
       {/* ── HERO ── */}
@@ -83,6 +104,34 @@ export default async function Home() {
 
       {/* ── OFFERS CAROUSEL (overlaps the bottom of the hero) ── */}
       <OffersCarousel slides={offers} />
+
+      {/* ── BEST SELLERS ── */}
+      {bestSellers.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+          <div className="flex items-end justify-between gap-4 mb-8 pb-4 border-b border-gray-200">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black text-[#0d1b2a] uppercase tracking-tight">
+                Best Sellers
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Our most-ordered research peptides, each with batch COAs in our{' '}
+                <Link href="/lab-results" className="text-[#2196f3] hover:underline">lab results library</Link>.
+              </p>
+            </div>
+            <Link
+              href="/shop"
+              className="shrink-0 text-xs font-bold tracking-widest uppercase text-[#2196f3] hover:text-[#1976d2]"
+            >
+              View all &rarr;
+            </Link>
+          </div>
+          <div className="product-grid">
+            {bestSellers.map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
