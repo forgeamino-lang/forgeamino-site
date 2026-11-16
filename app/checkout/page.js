@@ -68,8 +68,8 @@ affiliateCode: '',
   dob: '',
 })
 
-// Live tax rate from TaxJar (includes state + county + city)
-const [taxData, setTaxData] = useState(null) // full TaxJar rate object
+// Live tax rate from ZipTax via /api/tax-rate (state + county + city)
+const [taxData, setTaxData] = useState(null) // full rate object from /api/tax-rate
 const [taxLoading, setTaxLoading] = useState(false)
 const [affPreview, setAffPreview] = useState(null) // { valid, discount_pct, name } or null
 const [affLoading, setAffLoading] = useState(false)
