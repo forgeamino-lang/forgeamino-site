@@ -17,9 +17,12 @@ export default function ShopGrid({ products }) {
   const [sortOrder, setSortOrder] = useState('default')
 
   const filtered = activeTag === '' ? products : products.filter(p => p.tags && p.tags.includes(activeTag))
+  // Default order: oral products (capsules / tablets, shown as bottles) first, then the
+  // rest in catalog order. Same bottle rule as the product page's AddToCartButton.
+  const isOral = p => ['capsules', 'tablets'].includes(p.category) || /tablet|capsule/i.test(p.name)
   const displayed = sortOrder === 'az'
     ? [...filtered].sort((a, b) => a.name.localeCompare(b.name))
-    : filtered
+    : [...filtered.filter(isOral), ...filtered.filter(p => !isOral(p))]
 
   return (
     <div>
@@ -30,8 +33,8 @@ export default function ShopGrid({ products }) {
         </span>
 
         {/* Sort toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '4px' }}>Sort</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: '6px' }}>Sort</span>
           {[{ key: 'default', label: 'Default' }, { key: 'az', label: 'A-Z' }].map(opt => {
             const isActive = sortOrder === opt.key
             return (
@@ -39,13 +42,14 @@ export default function ShopGrid({ products }) {
                 key={opt.key}
                 onClick={() => setSortOrder(opt.key)}
                 style={{
-                  backgroundColor: isActive ? '#2196f3' : 'transparent',
-                  color: isActive ? '#ffffff' : '#6b7280',
-                  border: isActive ? '1px solid #2196f3' : '1px solid #d1d5db',
-                  borderRadius: '6px',
-                  padding: '4px 10px',
-                  fontSize: '11px',
-                  fontWeight: isActive ? '600' : '400',
+                  backgroundColor: isActive ? '#2196f3' : '#ffffff',
+                  color: isActive ? '#ffffff' : '#0d1b2a',
+                  border: isActive ? '2px solid #2196f3' : '2px solid #9ca3af',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  minHeight: '40px',
+                  fontSize: '14px',
+                  fontWeight: '700',
                   cursor: 'pointer',
                   letterSpacing: '0.03em',
                   transition: 'all 0.15s ease',
