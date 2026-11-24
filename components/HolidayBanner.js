@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { BatIcon, PumpkinIcon } from './HalloweenArt'
+import { HarvestBannerArt } from './HarvestArt'
+import useHolidayOffer, { rememberPromo } from './useHolidayOffer'
 
 // Slim site-wide sale banner. Reads the same offer_slide as the homepage
 // carousel, so it appears at starts_at and disappears at ends_at with no
@@ -10,7 +12,13 @@ import { BatIcon, PumpkinIcon } from './HalloweenArt'
 
 const THEME = {
   halloween: 'bg-gradient-to-r from-[#12081f] via-[#3a1556] to-[#12081f] text-white',
+  harvest: 'bg-[linear-gradient(90deg,#fbf3ea_0%,#fbf8f3_40%,#eaf6fd_60%,#dff1fb_100%)] text-[#0d1b2a]',
   sale: 'bg-gradient-to-r from-[#8e1b2a] via-[#B22234] to-[#0A1F44] text-white',
+}
+const PILL = {
+  halloween: 'bg-[#ff8a1f] text-[#12081f]',
+  harvest: 'bg-[#d9622b] text-white',
+  sale: 'bg-white text-[#B22234]',
 }
 
 function timeLeft(endsAt, now) {
@@ -24,40 +32,40 @@ function timeLeft(endsAt, now) {
 }
 
 export default function HolidayBanner() {
-  const [offer, setOffer] = useState(null)
-  const [now, setNow] = useState(() => Date.now())
+  const { offer, now } = useHolidayOffer()
+  const [onCheckout, setOnCheckout] = useState(true)
+  useEffect(() => { setOnCheckout(window.location.pathname.startsWith('/checkout')) }, [])
 
-  useEffect(() => {
-    if (window.location.pathname.startsWith('/checkout')) return
-    let alive = true
-    fetch('/api/holiday-offer')
-      .then(r => r.json())
-      .then(j => { if (alive) setOffer(j?.offer || null) })
-      .catch(() => {})
-    const t = setInterval(() => setNow(Date.now()), 60000)
-    return () => { alive = false; clearInterval(t) }
-  }, [])
-
-  if (!offer) return null
-  if (offer.endsAt && new Date(offer.endsAt).getTime() <= now) return null
-  const isHalloween = offer.tone === 'halloween'
+  if (!offer || onCheckout) return null
+  const tone = THEME[offer.tone] ? offer.tone : 'sale'
+  const isHalloween = tone === 'halloween'
+  const isHarvest = tone === 'harvest'
   const left = timeLeft(offer.endsAt, now)
+  const base = offer.cta?.href || '/shop'
+  const href = isHarvest && offer.code ? `${base}${base.includes('?') ? '&' : '?'}promo=${encodeURIComponent(offer.code)}` : base
 
   return (
-    <div className={`${THEME[offer.tone] || THEME.sale} relative overflow-hidden`} role="region" aria-label="Current sale">
+    <div className={`${THEME[tone]} relative overflow-hidden`} role="region" aria-label="Current sale">
+      {isHarvest && <HarvestBannerArt />}
       <Link
-        href={offer.cta?.href || '/shop'}
-        className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-center gap-2 sm:gap-3 text-[12px] sm:text-sm leading-tight text-center"
+        href={href}
+        onClick={() => isHarvest && rememberPromo(offer.code)}
+        className={`relative max-w-6xl mx-auto px-4 flex items-center justify-center gap-2 sm:gap-3 text-[12px] sm:text-sm leading-tight text-center ${isHarvest ? 'py-2.5 sm:py-3' : 'py-2'}`}
       >
         {isHalloween && <BatIcon className="hidden sm:block w-7 h-3 text-[#c9a7ff] opacity-80" />}
         {isHalloween && <PumpkinIcon className="w-5 h-5 shrink-0" />}
-        <span className="font-bold tracking-wide">{offer.headline}</span>
+        {isHarvest && offer.eyebrow && (
+          <span className="hidden md:inline text-[13px] tracking-[0.3em] font-semibold uppercase text-[#0b84c6]">{offer.eyebrow}</span>
+        )}
+        <span className={isHarvest ? 'font-light sm:text-[15px]' : 'font-bold tracking-wide'}>
+          {offer.headline}{isHarvest && offer.code ? ' with' : ''}
+        </span>
         {offer.code && (
-          <span className={`font-black tracking-widest text-[11px] px-2 py-0.5 rounded-full ${isHalloween ? 'bg-[#ff8a1f] text-[#12081f]' : 'bg-white text-[#B22234]'}`}>
+          <span className={`font-black tracking-widest text-[11px] sm:text-[12px] px-2.5 py-0.5 sm:py-1 rounded-full ${PILL[tone]}`}>
             {offer.code}
           </span>
         )}
-        {left && <span className="hidden sm:inline text-white/75">· {left}</span>}
+        {left && <span className={`hidden sm:inline ${isHarvest ? 'text-[#334155]' : 'text-white/75'}`}>· {left}</span>}
         {isHalloween && <PumpkinIcon className="hidden sm:block w-5 h-5 shrink-0" />}
         {isHalloween && <BatIcon className="hidden sm:block w-7 h-3 text-[#c9a7ff] opacity-80 -scale-x-100" />}
       </Link>

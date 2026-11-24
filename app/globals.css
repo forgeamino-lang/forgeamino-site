@@ -42,3 +42,7 @@ html {
     gap: 12px;
   }
 }
+
+/* Harvest → Frost sale theme (components/HarvestArt.js) */
+@keyframes harvest-drift { 0%,100% { transform: translate(0,-8px) rotate(0) } 50% { transform: translate(10px,6px) rotate(25deg) } }
+@keyframes harvest-peek { 0%,70%,100% { transform: translateY(0) } 80% { transform: translateY(-10px) } 90% { transform: translateY(0) } }

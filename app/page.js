@@ -36,7 +36,10 @@ export const metadata = {
 }
 
 export default async function Home() {
-  const offers = buildOffers(parseHolidayOffer(await getHolidayOfferRaw()))
+  const holiday = parseHolidayOffer(await getHolidayOfferRaw())
+  const offers = buildOffers(holiday)
+  const saleChip = holiday?.tone === 'harvest' && holiday.code && holiday.pct
+    ? `${Math.round(holiday.pct * 100)}% Off · ${holiday.code}` : null
   const bestSellers = BEST_SELLER_SLUGS
     .map(getProductBySlug)
     .filter(p => p && !p.hidden && p.inStock && p.price > 0)
@@ -70,6 +73,11 @@ export default async function Home() {
                   {badge}
                 </span>
               ))}
+              {saleChip && (
+                <span className="bg-[#d9622b] border border-[#d9622b] text-white text-xs font-bold tracking-wide px-3 py-1.5 rounded-full whitespace-nowrap">
+                  {saleChip}
+                </span>
+              )}
             </div>
 
             {/* Headline */}

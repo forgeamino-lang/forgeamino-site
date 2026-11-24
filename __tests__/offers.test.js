@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { standingOffers, parseHolidayOffer, buildOffers } from '../lib/offers.js'
+import { standingOffers, parseHolidayOffer, buildOffers, salePrice } from '../lib/offers.js'
 
 describe('standing offers', () => {
   const s = standingOffers()
@@ -37,5 +37,23 @@ describe('holiday slide', () => {
   })
   test('no holiday → four slides', () => {
     expect(buildOffers(null)).toHaveLength(4)
+  })
+})
+
+describe('harvest (TURKEY30) theme', () => {
+  const now = new Date('2026-11-28T12:00:00Z')
+  const o = { headline: '30% off sitewide', code: 'TURKEY30', theme: 'harvest', discount_pct: 0.3,
+    starts_at: '2026-11-27T06:01:00Z', ends_at: '2026-12-01T05:59:59Z' }
+  test('theme, pct and window come through', () => {
+    expect(parseHolidayOffer(o, now)).toMatchObject({ tone: 'harvest', pct: 0.3, code: 'TURKEY30', startsAt: o.starts_at })
+  })
+  test('bad pct is ignored', () => {
+    expect(parseHolidayOffer({ ...o, discount_pct: 30 }, now).pct).toBeNull()
+    expect(parseHolidayOffer({ ...o, discount_pct: 'x' }, now).pct).toBeNull()
+  })
+  test('sale prices match checkout rounding', () => {
+    expect(salePrice(70, 0.3)).toBe(49)
+    expect(salePrice(185, 0.3)).toBe(129.5)
+    expect(salePrice(0, 0.3)).toBeNull()
   })
 })

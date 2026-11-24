@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { HalloweenSlideArt } from './HalloweenArt'
+import { HarvestSlide, TurkeyPeek } from './HarvestArt'
 
 // Homepage offers carousel. Slides come from lib/offers.js (server side).
 // Auto-advances every 5.5s; pauses while hovered, focused or touched, and
@@ -17,6 +18,7 @@ const TONES = {
   slate: 'from-[#1a2e45] via-[#22405f] to-[#2e5a85]',
   sale: 'from-[#8e1b2a] via-[#B22234] to-[#0A1F44]',
   halloween: 'from-[#12081f] via-[#2a1140] to-[#5b1d06]',
+  harvest: 'from-white to-white',
 }
 
 export default function OffersCarousel({ slides = [] }) {
@@ -63,9 +65,12 @@ export default function OffersCarousel({ slides = [] }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <div className="max-w-6xl mx-auto px-5 sm:px-8">
+      <div className="relative max-w-6xl mx-auto px-5 sm:px-8">
+        {slides[i]?.tone === 'harvest' && (
+          <TurkeyPeek className="absolute z-0 left-10 sm:left-28 -top-[40px] sm:-top-[52px] w-[88px] h-[48px] sm:w-[120px] sm:h-[66px]" />
+        )}
         <div
-          className="relative overflow-hidden rounded-2xl shadow-[0_10px_30px_-12px_rgba(13,27,42,0.45)]"
+          className="relative z-10 overflow-hidden rounded-2xl shadow-[0_10px_30px_-12px_rgba(13,27,42,0.45)]"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
@@ -82,6 +87,7 @@ export default function OffersCarousel({ slides = [] }) {
                 aria-hidden={k !== i}
                 className={`relative w-full shrink-0 bg-gradient-to-br ${TONES[s.tone] || TONES.navy} text-white`}
               >
+                {s.tone === 'harvest' ? <HarvestSlide s={s} active={k === i} /> : (<>
                 {s.tone === 'halloween' && <HalloweenSlideArt />}
                 <div className="relative px-6 sm:px-20 py-9 sm:py-12 min-h-[230px] sm:min-h-[250px] flex flex-col justify-center gap-3 max-w-3xl">
                   <p className="text-[11px] sm:text-xs font-bold tracking-[0.2em] uppercase text-white/80">{s.eyebrow}</p>
@@ -106,6 +112,7 @@ export default function OffersCarousel({ slides = [] }) {
                     )}
                   </div>
                 </div>
+                </>)}
               </div>
             ))}
           </div>
