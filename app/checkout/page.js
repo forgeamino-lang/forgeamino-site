@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useCart } from '../../components/CartContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -13,6 +13,7 @@ import { suggestEmailCorrection } from '../../lib/emailCheck'
 import { normalizeCreditCode, looksLikeCreditCode, STORE_CREDIT_LABEL } from '../../lib/storeCredit'
 import { canCheckFirstOrder, firstOrderAmount, FIRST_ORDER_LABEL, FIRST_ORDER_PCT } from '../../lib/firstOrder'
 import { combineCodeDiscounts } from '../../lib/promoCodes'
+import useHolidayOffer from '../../components/useHolidayOffer'
 
 const US_STATES = [
 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -128,6 +129,20 @@ setForm(f => ({ ...f, promoCode: p }))
 applyPromoCode(p)
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [])
+
+// During a site-wide sale (site_config.offer_slide), pre-fill and apply the
+// sale code (e.g. TURKEY30) when no other sale code is already in the box.
+// Runs once per visit, so a customer who clears it isn't overridden.
+const { offer: holidayOffer } = useHolidayOffer()
+const holidayFilled = useRef(false)
+useEffect(() => {
+if (holidayFilled.current || !holidayOffer?.code) return
+holidayFilled.current = true
+if (form.promoCode.trim()) return
+setForm(f => (f.promoCode.trim() ? f : { ...f, promoCode: holidayOffer.code }))
+applyPromoCode(holidayOffer.code)
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [holidayOffer?.code])
 
 // Pre-fill a store credit code from the win-back email link (?credit=CODE),
 // captured on any page by AffiliateTracker. Applied once an email is entered.

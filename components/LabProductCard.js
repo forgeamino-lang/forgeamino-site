@@ -7,6 +7,8 @@ import { BULK_TIERS, isBulkEligible, bulkTierFor } from '../lib/bulkDiscount'
 import QuantityStepper from './QuantityStepper'
 import toast from 'react-hot-toast'
 import CoaSelector from './CoaSelector'
+import useHolidayOffer from './useHolidayOffer'
+import { salePrice } from '../lib/offers'
 
 // Card used on /lab for hidden products — no image, dark gradient with a
 // gold flask icon and a "LAB" badge to clearly distinguish it from the
@@ -15,6 +17,10 @@ import CoaSelector from './CoaSelector'
 export default function LabProductCard({ product }) {
   const { addItem } = useCart()
   const [qty, setQty] = useState(1)
+  const { offer } = useHolidayOffer()
+  // Same sale display as ProductCard: code price next to the struck regular price.
+  const sale = product.inStock && product.price > 0 && offer?.code && offer.pct ? salePrice(product.price, offer.pct) : null
+  const ribbon = sale && offer.tone === 'harvest'
   const bulkEligible = isBulkEligible(product) && product.inStock && product.price > 0
   // Price brackets 1–4 / 5–9 / 10+; any quantity can be chosen with the stepper.
   const ascending = [...BULK_TIERS].reverse()
@@ -66,6 +72,13 @@ export default function LabProductCard({ product }) {
           <span className="absolute top-2 left-2 bg-[#c9a227] text-[#0d1b2a] text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest shadow">
             LAB
           </span>
+          {ribbon && (
+            <div className="absolute top-0 right-0 w-24 h-24 overflow-hidden rounded-tr-lg pointer-events-none" aria-hidden="true">
+              <span className="absolute top-[18px] -right-[30px] w-[130px] rotate-45 bg-[#d9622b] text-white text-[10px] font-extrabold tracking-[0.12em] text-center py-1">
+                {Math.round(offer.pct * 100)}% OFF
+              </span>
+            </div>
+          )}
           {!product.inStock && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
               <span className="bg-white text-[#0d1b2a] text-xs font-bold px-3 py-1 rounded uppercase tracking-wider">
@@ -85,9 +98,17 @@ export default function LabProductCard({ product }) {
               {product.description}
             </p>
           )}
-          <p className="text-[#0d1b2a] font-medium text-sm mb-4">
-            {formatPrice(product.price)}
-          </p>
+          {sale ? (
+            <p className="text-sm mb-4 flex flex-wrap items-baseline gap-x-2">
+              <span className={`font-extrabold ${offer.tone === 'harvest' ? 'text-[#b8501f]' : 'text-[#B22234]'}`}>{formatPrice(sale)}</span>
+              <span className="text-gray-500 line-through">{formatPrice(product.price)}</span>
+              <span className="text-[11px] text-gray-500">with {offer.code}</span>
+            </p>
+          ) : (
+            <p className="text-[#0d1b2a] font-medium text-sm mb-4">
+              {formatPrice(product.price)}
+            </p>
+          )}
 
           {/* Certificate of Analysis (lab products have no detail page,
               so we surface a batch-picker dropdown directly on the card). */}
